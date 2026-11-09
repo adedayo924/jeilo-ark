@@ -1,0 +1,13 @@
+{
+  "name": "jeilo-ark",
+  "productName": "Jeilo ARK",
+  "version": "0.2.0",
+  "description": "Jeilo ARK: a small IDE with an agent chat for your local LLM",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "test": "node tests/unit_tests.js"
+  },
+  "dependencies": { "monaco-editor": "^0.52.0" },
+  "devDependencies": { "electron": "^45.2.3" }
+}
