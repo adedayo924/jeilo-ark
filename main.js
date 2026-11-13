@@ -2,8 +2,8 @@ const { app, BrowserWindow, ipcMain, dialog, net, safeStorage, shell } = require
 const path = require('path');
 const fs = require('fs/promises');
 const fsSync = require('fs');
-const { spawn } = require('child_process');
-const { execFile } = require('child_process');
+const { spawn, execFile, execSync } = require('child_process');
+const os = require('os');
 const { promisify } = require('util');
 const netMod = require('net');
 const http = require('http');
@@ -789,7 +789,8 @@ ipcMain.handle('ext-list', async () => {
       customMcp.push({ id: 'mcp-' + k, name: k, command: v.command, args: v.args || [] });
     }
   }
-  return { catalog: EXTENSION_CATALOG, installed: installedIds, customMcp };
+  const vsixInstalled = await getInstalledVsix();
+  return { catalog: EXTENSION_CATALOG, installed: installedIds, customMcp, vsixInstalled };
 });
 
 ipcMain.handle('ext-install', async (_e, id) => {
@@ -853,6 +854,525 @@ ipcMain.handle('ext-custom-mcp', async (_e, { name, command, args }) => {
   const argList = Array.isArray(args) ? args : String(args || '').trim().split(/\s+/).filter(Boolean);
   await saveMcpServer(sanitized, { command, args: argList });
   return { ok: true, name: sanitized };
+});
+
+// ---- VS Code VSIX Extensions Engine (Open VSX Registry & Local VSIX) ----
+const vsixExtDir = path.join(app.getPath('userData') || os.homedir(), 'jeilo_extensions');
+const vsixManifest = path.join(vsixExtDir, 'installed.json');
+
+function parseJsonWithComments(text) {
+  const clean = String(text || '')
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/\/\/.*/g, '')
+    .replace(/,\s*([\]}])/g, '$1');
+  return JSON.parse(clean);
+}
+
+function convertVsCodeThemeToJeilo(vsTheme, id, label) {
+  const colors = vsTheme.colors || {};
+  const isLight = vsTheme.type === 'light' || vsTheme.uiTheme === 'vs';
+  const base = isLight ? 'vs' : 'vs-dark';
+
+  const bg = colors['editor.background'] || (isLight ? '#ffffff' : '#1e1e1e');
+  const panel = colors['sideBar.background'] || colors['editorGroupHeader.tabsBackground'] || (isLight ? '#f3f3f3' : '#252526');
+  const raise = colors['activityBar.background'] || colors['list.hoverBackground'] || (isLight ? '#e8e8e8' : '#2a2d2e');
+  const line = colors['sideBar.border'] || colors['panel.border'] || colors['editorGroup.border'] || (isLight ? '#e5e5e5' : '#333333');
+  const text = colors['editor.foreground'] || (isLight ? '#333333' : '#cccccc');
+  const dim = colors['descriptionForeground'] || colors['editorLineNumber.foreground'] || (isLight ? '#717171' : '#858585');
+  const accent = colors['focusBorder'] || colors['activityBarBadge.background'] || colors['button.background'] || (isLight ? '#007acc' : '#0e639c');
+  const bad = colors['editorError.foreground'] || colors['errorForeground'] || '#f87171';
+  const ok = colors['gitDecoration.addedResourceForeground'] || colors['testing.iconPassed'] || '#4ade80';
+  const warn = colors['editorWarning.foreground'] || colors['editorInfo.foreground'] || '#fbbf24';
+
+  const rules = [];
+  if (Array.isArray(vsTheme.tokenColors)) {
+    for (const tc of vsTheme.tokenColors) {
+      if (!tc.scope || !tc.settings) continue;
+      const scopes = Array.isArray(tc.scope) ? tc.scope : String(tc.scope).split(/,\s*/);
+      for (const token of scopes) {
+        rules.push({
+          token: token.trim(),
+          foreground: tc.settings.foreground ? tc.settings.foreground.replace(/^#/, '') : undefined,
+          fontStyle: tc.settings.fontStyle
+        });
+      }
+    }
+  }
+
+  return {
+    id: id || 'vscode-theme-' + Date.now(),
+    name: label || 'Custom VS Code Theme',
+    base,
+    vars: {
+      '--bg': bg,
+      '--panel': panel,
+      '--raise': raise,
+      '--line': line,
+      '--text': text,
+      '--dim': dim,
+      '--accent': accent,
+      '--accent-text': '#ffffff',
+      '--ok': ok,
+      '--bad': bad,
+      '--warn': warn
+    },
+    monaco: colors,
+    rules
+  };
+}
+
+async function getInstalledVsix() {
+  try {
+    if (!fsSync.existsSync(vsixManifest)) return [];
+    const raw = await fs.readFile(vsixManifest, 'utf8');
+    const list = JSON.parse(raw);
+    if (!Array.isArray(list)) return [];
+
+    let dirty = false;
+    for (const item of list) {
+      if (!item.commands || !item.keybindings) {
+        const possiblePkgPath = path.join(vsixExtDir, item.safeId || item.id, 'extension', 'package.json');
+        if (fsSync.existsSync(possiblePkgPath)) {
+          try {
+            const pkg = JSON.parse(await fs.readFile(possiblePkgPath, 'utf8'));
+            item.commands = (pkg.contributes?.commands || []).map((c) => ({
+              command: c.command,
+              title: c.title || c.command,
+              icon: c.icon || null
+            }));
+            item.keybindings = (pkg.contributes?.keybindings || []).map((k) => ({
+              command: k.command,
+              key: k.key,
+              win: k.win,
+              mac: k.mac
+            }));
+            item.main = pkg.main || null;
+            dirty = true;
+          } catch {}
+        }
+      }
+    }
+    if (dirty) {
+      await saveInstalledVsix(list).catch(() => {});
+    }
+    return list;
+  } catch {
+    return [];
+  }
+}
+
+async function saveInstalledVsix(list) {
+  if (!fsSync.existsSync(vsixExtDir)) fsSync.mkdirSync(vsixExtDir, { recursive: true });
+  await fs.writeFile(vsixManifest, JSON.stringify(list, null, 2), 'utf8');
+}
+
+function extractVsix(archivePath, targetDir) {
+  if (!fsSync.existsSync(targetDir)) fsSync.mkdirSync(targetDir, { recursive: true });
+  try {
+    execSync(`tar -xf "${archivePath}" -C "${targetDir}"`, { stdio: 'ignore' });
+  } catch (tarErr) {
+    if (process.platform === 'win32') {
+      const psCmd = `powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "Expand-Archive -LiteralPath '${archivePath}' -DestinationPath '${targetDir}' -Force"`;
+      execSync(psCmd, { stdio: 'ignore' });
+    } else {
+      throw tarErr;
+    }
+  }
+}
+
+async function installVsixPackage({ id, downloadUrl, localPath }) {
+  if (!fsSync.existsSync(vsixExtDir)) fsSync.mkdirSync(vsixExtDir, { recursive: true });
+  let vsixFile = localPath;
+  let tmpCreated = false;
+
+  if (!vsixFile && downloadUrl) {
+    const tmpName = 'jeilo-ext-' + Date.now() + '-' + Math.random().toString(36).slice(2) + '.vsix';
+    vsixFile = path.join(os.tmpdir(), tmpName);
+    const res = await fetch(downloadUrl, { headers: { 'User-Agent': 'Jeilo-ARK-IDE' } });
+    if (!res.ok) throw new Error(`Download failed with status ${res.status}`);
+    const buf = Buffer.from(await res.arrayBuffer());
+    await fs.writeFile(vsixFile, buf);
+    tmpCreated = true;
+  }
+
+  if (!vsixFile || !fsSync.existsSync(vsixFile)) {
+    throw new Error('No valid VSIX file provided or downloaded.');
+  }
+
+  const safeId = (id || path.basename(vsixFile, '.vsix')).replace(/[^a-zA-Z0-9._-]/g, '_');
+  const targetDir = path.join(vsixExtDir, safeId);
+  if (fsSync.existsSync(targetDir)) fsSync.rmSync(targetDir, { recursive: true, force: true });
+
+  try {
+    extractVsix(vsixFile, targetDir);
+
+    const pkgPath = path.join(targetDir, 'extension', 'package.json');
+    if (!fsSync.existsSync(pkgPath)) {
+      throw new Error('Invalid VSIX: extension/package.json was not found in archive.');
+    }
+
+    const pkg = JSON.parse(await fs.readFile(pkgPath, 'utf8'));
+    const extName = pkg.displayName || pkg.name || safeId;
+    const publisher = pkg.publisher || safeId.split('.')[0] || '';
+    const fullId = publisher ? `${publisher}.${pkg.name}` : safeId;
+
+    const themes = [];
+    if (pkg.contributes && Array.isArray(pkg.contributes.themes)) {
+      for (const thm of pkg.contributes.themes) {
+        if (!thm.path) continue;
+        const themeFilePath = path.join(targetDir, 'extension', thm.path);
+        try {
+          if (fsSync.existsSync(themeFilePath)) {
+            const rawTheme = await fs.readFile(themeFilePath, 'utf8');
+            const parsedTheme = parseJsonWithComments(rawTheme);
+            const themeId = `${safeId}-${(thm.label || 'theme').toLowerCase().replace(/[^a-z0-9]/g, '-')}`;
+            const converted = convertVsCodeThemeToJeilo(parsedTheme, themeId, thm.label || extName);
+            themes.push(converted);
+          }
+        } catch {}
+      }
+    }
+
+    const snippets = [];
+    if (pkg.contributes && Array.isArray(pkg.contributes.snippets)) {
+      for (const snip of pkg.contributes.snippets) {
+        snippets.push({ language: snip.language, path: snip.path });
+      }
+    }
+
+    const commands = (pkg.contributes?.commands || []).map((c) => ({
+      command: c.command,
+      title: c.title || c.command,
+      icon: c.icon || null
+    }));
+    const keybindings = (pkg.contributes?.keybindings || []).map((k) => ({
+      command: k.command,
+      key: k.key,
+      win: k.win,
+      mac: k.mac
+    }));
+
+    const record = {
+      id: fullId,
+      safeId,
+      name: extName,
+      publisher,
+      version: pkg.version || '1.0.0',
+      description: pkg.description || '',
+      themes,
+      snippets,
+      commands,
+      keybindings,
+      main: pkg.main || null,
+      installedAt: Date.now()
+    };
+
+    const currentList = await getInstalledVsix();
+    const updated = currentList.filter(x => x.id !== fullId && x.safeId !== safeId);
+    updated.unshift(record);
+    await saveInstalledVsix(updated);
+
+    return { ok: true, ext: record, themes, commands };
+  } finally {
+    if (tmpCreated && fsSync.existsSync(vsixFile)) {
+      try { fsSync.unlinkSync(vsixFile); } catch {}
+    }
+  }
+}
+
+const CURATED_MARKETPLACE = [
+  { id: 'dracula-theme.theme-dracula', namespace: 'dracula-theme', name: 'Dracula Theme', version: '2.24.3', desc: 'The famous Dracula dark theme for code editors.', downloads: 7200000, rating: 4.8, downloadUrl: 'https://open-vsx.org/api/dracula-theme/theme-dracula/2.24.3/file/dracula-theme.theme-dracula-2.24.3.vsix' },
+  { id: 'zhuangtongfa.Material-theme', namespace: 'zhuangtongfa', name: 'One Dark Pro', version: '3.18.9', desc: 'Atom\'s iconic One Dark theme with rich syntax highlights.', downloads: 9100000, rating: 4.9, downloadUrl: 'https://open-vsx.org/api/zhuangtongfa/Material-theme/3.18.9/file/zhuangtongfa.Material-theme-3.18.9.vsix' },
+  { id: 'enkia.tokyo-night', namespace: 'enkia', name: 'Tokyo Night', version: '1.0.9', desc: 'A clean, dark Visual Studio Code theme that celebrates the lights of Downtown Tokyo.', downloads: 2400000, rating: 4.9, downloadUrl: 'https://open-vsx.org/api/enkia/tokyo-night/1.0.9/file/enkia.tokyo-night-1.0.9.vsix' },
+  { id: 'sainnhe.gruvbox-material', namespace: 'sainnhe', name: 'Gruvbox Material', version: '6.5.2', desc: 'Gruvbox with softened contrast and warm retro palette.', downloads: 1800000, rating: 4.9, downloadUrl: 'https://open-vsx.org/api/sainnhe/gruvbox-material/6.5.2/file/sainnhe.gruvbox-material-6.5.2.vsix' },
+  { id: 'Catppuccin.catppuccin-vsc', namespace: 'Catppuccin', name: 'Catppuccin for VSCode', version: '3.16.1', desc: 'Soothing pastel theme for the high-spirited (Mocha, Macchiato, Frappé, Latte).', downloads: 3500000, rating: 4.9, downloadUrl: 'https://open-vsx.org/api/Catppuccin/catppuccin-vsc/3.16.1/file/Catppuccin.catppuccin-vsc-3.16.1.vsix' },
+  { id: 'PKief.material-icon-theme', namespace: 'PKief', name: 'Material Icon Theme', version: '5.40.0', desc: 'Material Design icons for files and folders.', downloads: 22000000, rating: 4.9, downloadUrl: 'https://open-vsx.org/api/PKief/material-icon-theme/5.40.0/file/PKief.material-icon-theme-5.40.0.vsix' },
+  { id: 'esbenp.prettier-vscode', namespace: 'esbenp', name: 'Prettier - Code formatter', version: '10.4.1', desc: 'Code formatter using prettier for JS, TS, HTML, CSS, JSON.', downloads: 44000000, rating: 4.7, downloadUrl: 'https://open-vsx.org/api/esbenp/prettier-vscode/10.4.1/file/esbenp.prettier-vscode-10.4.1.vsix' }
+];
+
+ipcMain.handle('ext-marketplace-search', async (_e, query) => {
+  const q = String(query || '').trim();
+  const installedList = await getInstalledVsix();
+  const installedSet = new Set(installedList.map(x => x.id));
+
+  try {
+    const url = q
+      ? `https://open-vsx.org/api/-/search?query=${encodeURIComponent(q)}&size=30`
+      : 'https://open-vsx.org/api/-/search?query=theme&size=30';
+    
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 6000);
+    const res = await fetch(url, { headers: { 'User-Agent': 'Jeilo-ARK-IDE' }, signal: controller.signal });
+    clearTimeout(timeout);
+
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    const items = (data.extensions || []).map(e => ({
+      id: `${e.namespace}.${e.name}`,
+      namespace: e.namespace,
+      name: e.displayName || e.name,
+      rawName: e.name,
+      desc: e.description || '',
+      version: e.version,
+      downloads: e.downloadCount || 0,
+      rating: Math.round((e.averageRating || 5) * 10) / 10,
+      downloadUrl: (e.files && e.files.download) || `https://open-vsx.org/api/${e.namespace}/${e.name}/${e.version}/file/${e.namespace}.${e.name}-${e.version}.vsix`,
+      iconUrl: (e.files && e.files.icon) || null,
+      installed: installedSet.has(`${e.namespace}.${e.name}`)
+    }));
+    return { results: items, total: data.totalSize || items.length, source: 'open-vsx' };
+  } catch (err) {
+    const filtered = CURATED_MARKETPLACE.filter(e => !q || e.name.toLowerCase().includes(q.toLowerCase()) || e.desc.toLowerCase().includes(q.toLowerCase()));
+    return {
+      results: filtered.map(e => ({ ...e, installed: installedSet.has(e.id) })),
+      total: filtered.length,
+      source: 'offline-curated',
+      note: 'Offline mode: displaying curated extensions.'
+    };
+  }
+});
+
+ipcMain.handle('ext-vsix-install', async (_e, opts = {}) => {
+  return installVsixPackage(opts);
+});
+
+ipcMain.handle('ext-vsix-uninstall', async (_e, id) => {
+  const currentList = await getInstalledVsix();
+  const record = currentList.find(x => x.id === id || x.safeId === id);
+  if (!record) return { ok: true };
+
+  const targetDir = path.join(vsixExtDir, record.safeId || id.replace(/[^a-zA-Z0-9._-]/g, '_'));
+  if (fsSync.existsSync(targetDir)) {
+    try { fsSync.rmSync(targetDir, { recursive: true, force: true }); } catch {}
+  }
+
+  const updated = currentList.filter(x => x.id !== id && x.safeId !== id);
+  await saveInstalledVsix(updated);
+  return { ok: true, id };
+});
+
+ipcMain.handle('ext-install-file', async () => {
+  const res = await dialog.showOpenDialog({
+    title: 'Select VS Code Extension Package (.vsix)',
+    filters: [{ name: 'VS Code Extension (.vsix)', extensions: ['vsix'] }],
+    properties: ['openFile']
+  });
+  if (res.canceled || !res.filePaths || !res.filePaths.length) {
+    return { canceled: true };
+  }
+  const vsixPath = res.filePaths[0];
+  const r = await installVsixPackage({ localPath: vsixPath });
+  return { canceled: false, ...r };
+});
+
+const activeExtHosts = new Map();
+let opencodeWebProc = null;
+let opencodeWebUrl = null;
+
+function launchInteractiveConsole(cmd, { cwd } = {}) {
+  const workdir = cwd || root || process.cwd();
+  const env = getChildEnv();
+  if (process.platform === 'win32') {
+    const wtPath = path.join(process.env.LOCALAPPDATA || '', 'Microsoft', 'WindowsApps', 'wt.exe');
+    if (fsSync.existsSync(wtPath)) {
+      try {
+        spawn(wtPath, ['-d', workdir, 'cmd.exe', '/k', cmd], {
+          detached: true,
+          stdio: 'ignore',
+          env
+        }).unref();
+        return true;
+      } catch {}
+    }
+    try {
+      spawn('cmd.exe', ['/c', 'start', `"${cmd}"`, 'cmd.exe', '/k', cmd], {
+        cwd: workdir,
+        detached: true,
+        stdio: 'ignore',
+        env
+      }).unref();
+      return true;
+    } catch {}
+  }
+  return false;
+}
+
+async function startOpencodeWeb() {
+  if (opencodeWebUrl && opencodeWebProc) {
+    return { url: opencodeWebUrl };
+  }
+  return new Promise((resolve, reject) => {
+    const proc = spawn('opencode', ['web', '--port', '0'], {
+      cwd: root || process.cwd(),
+      shell: true,
+      windowsHide: true,
+      env: getChildEnv()
+    });
+    opencodeWebProc = proc;
+    let resolved = false;
+
+    const onData = (d) => {
+      const str = d.toString();
+      const m = str.match(/http:\/\/127\.0\.0\.1:\d+\/?/);
+      if (m && !resolved) {
+        resolved = true;
+        opencodeWebUrl = m[0];
+        resolve({ url: opencodeWebUrl });
+      }
+    };
+
+    proc.stdout.on('data', onData);
+    proc.stderr.on('data', onData);
+    proc.on('error', (err) => { if (!resolved) { resolved = true; reject(err); } });
+    proc.on('close', () => { opencodeWebProc = null; opencodeWebUrl = null; });
+
+    setTimeout(() => {
+      if (!resolved) {
+        resolved = true;
+        if (opencodeWebUrl) resolve({ url: opencodeWebUrl });
+        else reject(new Error('Timed out waiting for OpenCode web server to start.'));
+      }
+    }, 8000);
+  });
+}
+
+async function runVsixCommand(extId, commandId) {
+  if (commandId === 'opencode.openWeb') {
+    const web = await startOpencodeWeb();
+    return {
+      ok: true,
+      action: {
+        action: 'open-web',
+        url: web.url,
+        title: 'OpenCode Web UI'
+      }
+    };
+  }
+  const currentList = await getInstalledVsix();
+  const record = currentList.find(x => x.id === extId || x.safeId === extId);
+  if (!record) throw new Error('Extension not found: ' + extId);
+
+  const extDir = path.join(vsixExtDir, record.safeId || record.id, 'extension');
+  const pkgPath = path.join(extDir, 'package.json');
+  if (!fsSync.existsSync(pkgPath)) throw new Error('Extension files missing for ' + extId);
+
+  const pkg = JSON.parse(await fs.readFile(pkgPath, 'utf8'));
+
+  if (!pkg.main) {
+    if (commandId && commandId.startsWith('opencode.')) {
+      return {
+        ok: true,
+        action: { action: 'send-terminal', name: 'opencode', text: 'opencode' }
+      };
+    }
+    return { ok: true, action: { action: 'info', message: `Command ${commandId} ready.` } };
+  }
+
+  let host = activeExtHosts.get(extId);
+  if (!host) {
+    const commands = new Map();
+    const terminals = [];
+    let lastAction = null;
+
+    const mockVscode = {
+      commands: {
+        registerCommand: (id, callback) => {
+          commands.set(id, callback);
+          return { dispose: () => commands.delete(id) };
+        },
+        executeCommand: async (id, ...args) => {
+          const fn = commands.get(id);
+          if (fn) return fn(...args);
+        }
+      },
+      window: {
+        terminals,
+        activeTerminal: null,
+        activeTextEditor: {
+          document: { uri: { fsPath: '' } },
+          selection: { isEmpty: true, start: { line: 0 }, end: { line: 0 } }
+        },
+        createTerminal: (opts) => {
+          const term = {
+            name: opts.name || 'Terminal',
+            show: () => { lastAction = { action: 'show-terminal', name: opts.name }; },
+            sendText: (text) => { lastAction = { action: 'send-terminal', name: opts.name, text, env: opts.env }; }
+          };
+          terminals.push(term);
+          mockVscode.window.activeTerminal = term;
+          return term;
+        },
+        showInformationMessage: (msg) => { lastAction = { action: 'info', message: msg }; },
+        showErrorMessage: (msg) => { lastAction = { action: 'error', message: msg }; }
+      },
+      workspace: {
+        asRelativePath: (p) => String((p && p.fsPath) || p || ''),
+        getWorkspaceFolder: () => true
+      },
+      Uri: {
+        file: (f) => ({ fsPath: f })
+      },
+      ViewColumn: { Beside: 2 }
+    };
+
+    const Module = require('module');
+    const origRequire = Module.prototype.require;
+    Module.prototype.require = function(id) {
+      if (id === 'vscode') return mockVscode;
+      return origRequire.apply(this, arguments);
+    };
+
+    const fullMain = path.join(extDir, pkg.main);
+    try {
+      const extMod = require(fullMain);
+      if (typeof extMod.activate === 'function') {
+        extMod.activate({
+          subscriptions: [],
+          asAbsolutePath: (p) => path.join(extDir, p)
+        });
+      }
+    } finally {
+      Module.prototype.require = origRequire;
+    }
+
+    host = { commands, getLastAction: () => lastAction, clearLastAction: () => { lastAction = null; } };
+    activeExtHosts.set(extId, host);
+  }
+
+  host.clearLastAction();
+  const fn = host.commands.get(commandId);
+  if (!fn) {
+    if (commandId && commandId.toLowerCase().includes('terminal')) {
+      return {
+        ok: true,
+        action: { action: 'send-terminal', name: pkg.name || 'Terminal', text: pkg.name || 'opencode' }
+      };
+    }
+    throw new Error(`Command "${commandId}" was not registered by extension ${extId}`);
+  }
+
+  await fn();
+  const act = host.getLastAction();
+  if (act && (act.action === 'send-terminal' || act.action === 'show-terminal')) {
+    const isTui = (act.text && act.text.trim() === 'opencode') || (act.name && act.name.toLowerCase().includes('opencode'));
+    if (isTui) {
+      launchInteractiveConsole(act.text || 'opencode', { cwd: root });
+      return {
+        ok: true,
+        action: {
+          action: 'launched-interactive',
+          name: act.name || 'opencode',
+          text: act.text || 'opencode',
+          message: 'Launched OpenCode in an interactive console window.'
+        }
+      };
+    }
+  }
+  return { ok: true, action: act };
+}
+
+ipcMain.handle('ext-run-command', async (_e, { extId, commandId }) => {
+  return runVsixCommand(extId, commandId);
 });
 
 // ---- PHP-friendly preview (php -S) ----

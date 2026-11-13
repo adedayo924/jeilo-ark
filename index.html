@@ -175,6 +175,9 @@ footer kbd { font:10px var(--mono); border:1px solid var(--line); border-radius:
 .extBadge.theme { background:rgba(168,85,247,0.12); color:#a855f7; }
 .extBadge.skill { background:rgba(34,197,94,0.12); color:#22c55e; }
 .extBadge.custom { background:rgba(234,179,8,0.12); color:#eab308; }
+.extBadge.vsix { background:rgba(0,122,204,0.14); color:#007acc; }
+.extBadge.store { background:rgba(236,72,153,0.14); color:#ec4899; }
+.extMetaLine { font-size:10px; color:var(--dim); display:flex; align-items:center; gap:6px; margin-top:1px; }
 .extCardDesc { font-size:11px; color:var(--dim); line-height:1.4; }
 .extCardFoot { display:flex; justify-content:space-between; align-items:center; margin-top:4px; }
 .extCardFoot button { padding:2px 8px; font-size:11px; }
@@ -296,10 +299,15 @@ footer kbd { font:10px var(--mono); border:1px solid var(--line); border-radius:
         <div id="searchResults" hidden></div>
         <div id="gitPanel" hidden></div>
         <div id="extPanel" hidden>
-          <div id="extSearchWrap"><input id="extSearch" placeholder="Search extensions (MCP, themes, skills)..." autocomplete="off" spellcheck="false"></div>
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+            <span style="font-size:11px;font-weight:600;color:var(--dim);letter-spacing:0.5px">EXTENSIONS &amp; PLUGINS</span>
+            <button class="ghost" id="extInstallVsixBtn" title="Install an extension from a local .vsix file" style="font-size:11px;padding:2px 6px">📁 Install VSIX…</button>
+          </div>
+          <div id="extSearchWrap"><input id="extSearch" placeholder="Search extensions or VS Code Store..." autocomplete="off" spellcheck="false"></div>
           <div id="extFilterRow">
-            <button class="extTag on" data-filter="all">All</button>
-            <button class="extTag" data-filter="mcp">MCP Tools</button>
+            <button class="extTag on" data-filter="all">Installed</button>
+            <button class="extTag" data-filter="marketplace" style="color:var(--accent);font-weight:600">VS Code Store</button>
+            <button class="extTag" data-filter="mcp">MCP</button>
             <button class="extTag" data-filter="theme">Themes</button>
             <button class="extTag" data-filter="skill">AI Skills</button>
           </div>
@@ -1089,8 +1097,10 @@ $('actSettings')?.addEventListener('click', () => {
   if (editor) { editor.focus(); editor.trigger('keyboard', 'editor.action.quickCommand'); }
 });
 
-// ---------- Extensions Hub ----------
-let extFilter = 'all', extCatalog = [], extInstalled = new Set(), extCustom = [];
+// ---------- Extensions Hub & VS Code Store ----------
+let extFilter = 'all', extCatalog = [], extInstalled = new Set(), extCustom = [], extVsixList = [];
+let marketplaceResults = [], marketplaceLoading = false, marketplaceDebounce = null;
+
 async function renderExtensions() {
   const box = $('extList');
   box.innerHTML = '<div class="msg note" style="padding:6px">Loading extensions…</div>';
@@ -1099,9 +1109,114 @@ async function renderExtensions() {
     extCatalog = r.catalog || [];
     extInstalled = new Set(r.installed || []);
     extCustom = r.customMcp || [];
-    drawExtensions();
+    extVsixList = r.vsixInstalled || [];
+
+    // Register all themes contributed by installed VS Code extensions into Monaco
+    if (window.monaco) {
+      for (const vsix of extVsixList) {
+        if (Array.isArray(vsix.themes)) {
+          for (const thm of vsix.themes) {
+            try {
+              monaco.editor.defineTheme(thm.id, {
+                base: thm.base || 'vs-dark',
+                inherit: true,
+                rules: thm.rules || [],
+                colors: thm.monaco || {}
+              });
+            } catch {}
+          }
+        }
+      }
+    }
+
+    if (extFilter === 'marketplace') {
+      searchMarketplace($('extSearch')?.value || '');
+    } else {
+      drawExtensions();
+    }
   } catch (e) {
     box.innerHTML = `<div class="msg err" style="padding:6px">Could not load extensions: ${esc(cleanErr(e))}</div>`;
+  }
+}
+
+async function searchMarketplace(query) {
+  marketplaceLoading = true;
+  drawExtensions();
+  try {
+    const r = await api.extMarketplaceSearch(query);
+    marketplaceResults = r.results || [];
+  } catch (err) {
+    marketplaceResults = [];
+  } finally {
+    marketplaceLoading = false;
+    drawExtensions();
+  }
+}
+
+async function executeVsixCommand(extId, commandId) {
+  try {
+    const res = await api.extRunCommand({ extId, commandId });
+    if (res && res.action) {
+      if (res.action.action === 'open-web') {
+        previewUrl = res.action.url;
+        $('previewFrame').src = previewUrl;
+        $('previewUrl').value = previewUrl;
+        openPanel('preview');
+        bubble('note', `Opened OpenCode Web interface at ${res.action.url}`);
+        return;
+      }
+      if (res.action.action === 'launched-interactive') {
+        openPanel('term');
+        const termName = res.action.name || 'opencode';
+        let targetTab = termTabsList.find(t => t.name.toLowerCase() === termName.toLowerCase());
+        if (!targetTab) {
+          termTabSeq++;
+          targetTab = {
+            id: 'term-' + termTabSeq,
+            name: termName,
+            out: `Jeilo ARK terminal (${termName}). Commands run in the project root.\n`,
+            currentProcId: null,
+            history: [],
+            histIdx: 0
+          };
+          termTabsList.push(targetTab);
+        }
+        switchTermTab(targetTab.id);
+        termAppend(`\n$ [opencode] Launched interactive OpenCode session in a dedicated console window.\n`, 'cmd', targetTab.id);
+        termAppend(`Tip: You can also open the full Web UI inside Jeilo ARK via "Open Web UI".\n`, 'meta', targetTab.id);
+        bubble('note', 'Launched OpenCode interactive terminal session!');
+        return;
+      }
+      if (res.action.action === 'send-terminal' || res.action.action === 'show-terminal') {
+        openPanel('term');
+        const termName = res.action.name || 'Terminal';
+        let targetTab = termTabsList.find(t => t.name.toLowerCase() === termName.toLowerCase());
+        if (!targetTab) {
+          termTabSeq++;
+          targetTab = {
+            id: 'term-' + termTabSeq,
+            name: termName,
+            out: `Jeilo ARK terminal (${termName}). Commands run in the project root.\n`,
+            currentProcId: null,
+            history: [],
+            histIdx: 0
+          };
+          termTabsList.push(targetTab);
+        }
+        switchTermTab(targetTab.id);
+        if (res.action.text) {
+          const cmd = res.action.text;
+          termAppend(cmd + '\n', 'cmd', targetTab.id);
+          const r = await api.termRun(cmd);
+          targetTab.currentProcId = r.id;
+          currentTermId = r.id;
+        }
+      } else if (res.action.message) {
+        bubble('note', res.action.message);
+      }
+    }
+  } catch (err) {
+    bubble('err', 'Failed to run ' + commandId + ': ' + cleanErr(err));
   }
 }
 function drawExtensions() {
@@ -1110,17 +1225,184 @@ function drawExtensions() {
   const q = ($('extSearch')?.value || '').toLowerCase().trim();
   const filter = extFilter;
 
+  // ---------------- Marketplace View ----------------
+  if (filter === 'marketplace') {
+    if (marketplaceLoading) {
+      box.innerHTML = '<div class="msg note" style="padding:8px"><span class="spin"></span> Searching VS Code Store…</div>';
+      return;
+    }
+    if (!marketplaceResults.length) {
+      box.innerHTML = '<div class="msg note" style="padding:8px">No extensions found matching your search.</div>';
+      return;
+    }
+    for (const item of marketplaceResults) {
+      const isInstalled = extVsixList.some(x => x.id === item.id || x.safeId === item.id);
+      const card = el('div', 'extCard');
+      const downloadsStr = item.downloads > 1000000 ? (item.downloads / 1000000).toFixed(1) + 'M' : item.downloads > 1000 ? (item.downloads / 1000).toFixed(0) + 'k' : (item.downloads || '0');
+
+      card.innerHTML = `
+        <div class="extCardHead">
+          <div style="flex:1;overflow:hidden">
+            <span class="extCardTitle">${esc(item.name)}</span>
+            <div class="extMetaLine">
+              <span>${esc(item.namespace || '')}</span>
+              <span>·</span>
+              <span>★ ${item.rating || 5}</span>
+              <span>·</span>
+              <span>${downloadsStr} downloads</span>
+            </div>
+          </div>
+          <span class="extBadge store">VS Code</span>
+        </div>
+        <div class="extCardDesc">${esc(item.desc || '')}</div>
+        <div class="extCardFoot">
+          <span style="font-size:10px;color:var(--dim)">v${esc(item.version || '1.0.0')}</span>
+          <button class="${isInstalled ? 'ghost' : ''}">${isInstalled ? '✓ Installed' : 'Install'}</button>
+        </div>
+      `;
+
+      const btn = card.querySelector('button');
+      btn.onclick = async () => {
+        if (isInstalled) {
+          if (confirm(`Uninstall ${item.name}?`)) {
+            btn.disabled = true;
+            btn.textContent = 'Uninstalling…';
+            try {
+              await api.extVsixUninstall(item.id);
+              bubble('note', `Uninstalled ${item.name}.`);
+              await renderExtensions();
+            } catch (err) {
+              bubble('err', 'Uninstall failed: ' + cleanErr(err));
+              btn.disabled = false;
+            }
+          }
+        } else {
+          btn.disabled = true;
+          btn.textContent = 'Installing…';
+          try {
+            const res = await api.extVsixInstall({ id: item.id, downloadUrl: item.downloadUrl });
+            if (res.themes && res.themes.length) {
+              applyCustomTheme(res.themes[0]);
+              bubble('note', `Installed & applied ${res.themes[0].name} from VS Code Store!`);
+            } else {
+              bubble('note', `Installed ${item.name} from VS Code Store!`);
+            }
+            await renderExtensions();
+          } catch (err) {
+            bubble('err', 'Install failed: ' + cleanErr(err));
+            btn.disabled = false;
+            btn.textContent = 'Install';
+          }
+        }
+      };
+      box.appendChild(card);
+    }
+    return;
+  }
+
+  // ---------------- Installed & Built-in Extensions View ----------------
   const items = extCatalog.filter((item) => {
     if (filter !== 'all' && item.type !== filter) return false;
     if (q && !item.name.toLowerCase().includes(q) && !item.desc.toLowerCase().includes(q)) return false;
     return true;
   });
 
-  if (!items.length && !extCustom.length) {
-    box.innerHTML = '<div class="msg note" style="padding:6px">No extensions match your search.</div>';
+  // Render VSIX Installed Extensions
+  const vsixItems = extVsixList.filter((v) => {
+    if (filter !== 'all' && filter !== 'theme') return false;
+    if (q && !v.name.toLowerCase().includes(q) && !v.description.toLowerCase().includes(q)) return false;
+    return true;
+  });
+
+  if (!items.length && !extCustom.length && !vsixItems.length) {
+    box.innerHTML = '<div class="msg note" style="padding:6px">No extensions match your filter. Check <b>VS Code Store</b> tab to browse extensions.</div>';
     return;
   }
 
+  // Draw Installed VSIX Extensions
+  for (const v of vsixItems) {
+    const card = el('div', 'extCard');
+    const hasThemes = Array.isArray(v.themes) && v.themes.length > 0;
+    const isThemeActive = hasThemes && v.themes.some(t => activeThemeExt?.id === t.id);
+    const hasCommands = Array.isArray(v.commands) && v.commands.length > 0;
+
+    card.innerHTML = `
+      <div class="extCardHead">
+        <div>
+          <span class="extCardTitle">${esc(v.name)}</span>
+          <div class="extMetaLine"><span>${esc(v.publisher || 'VS Code')}</span> · <span>v${esc(v.version)}</span></div>
+        </div>
+        <span class="extBadge vsix">VSIX</span>
+      </div>
+      <div class="extCardDesc">${esc(v.description || 'Installed VS Code extension.')}</div>
+      ${hasThemes ? `
+        <div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:4px">
+          ${v.themes.map(t => `<button class="ghost apply-thm-btn ${activeThemeExt?.id === t.id ? 'on' : ''}" data-tid="${esc(t.id)}" style="font-size:10px;padding:2px 6px">${activeThemeExt?.id === t.id ? '✓ ' : ''}${esc(t.name)}</button>`).join('')}
+        </div>
+      ` : ''}
+      ${hasCommands ? `
+        <div style="margin-top:6px;display:flex;flex-direction:column;gap:3px">
+          <span style="font-size:9.5px;font-weight:600;color:var(--dim);text-transform:uppercase;letter-spacing:0.3px">Commands</span>
+          ${v.id.includes('opencode') ? `
+            <button class="ghost run-vsix-cmd" data-ext="${esc(v.id)}" data-cmd="opencode.openWeb" style="display:flex;align-items:center;justify-content:space-between;padding:3px 7px;font-size:11px;text-align:left;border-radius:4px;color:var(--accent);font-weight:600">
+              <span>🌐 Open Web UI (In IDE Preview)</span>
+              <kbd style="font-size:9.5px;opacity:0.85;padding:1px 4px;background:var(--panel);border-radius:3px">Web</kbd>
+            </button>
+          ` : ''}
+          ${v.commands.map(cmd => {
+            const kb = (v.keybindings || []).find(k => k.command === cmd.command);
+            const kbText = kb ? (kb.win || kb.key || '') : '';
+            return `
+              <button class="ghost run-vsix-cmd" data-ext="${esc(v.id)}" data-cmd="${esc(cmd.command)}" style="display:flex;align-items:center;justify-content:space-between;padding:3px 7px;font-size:11px;text-align:left;border-radius:4px">
+                <span style="overflow:hidden;text-overflow:ellipsis">▶ ${esc(cmd.title || cmd.command)}</span>
+                ${kbText ? `<kbd style="font-size:9.5px;opacity:0.75;padding:1px 4px;background:var(--panel);border-radius:3px;margin-left:6px">${esc(kbText)}</kbd>` : ''}
+              </button>
+            `;
+          }).join('')}
+        </div>
+      ` : ''}
+      <div class="extCardFoot">
+        <span style="font-size:10.5px;color:var(--ok)"><b>✓ Loaded &amp; Active</b></span>
+        <button class="ghost del-vsix-btn">Uninstall</button>
+      </div>
+    `;
+
+    card.querySelectorAll('.run-vsix-cmd').forEach((b) => {
+      b.onclick = () => executeVsixCommand(b.dataset.ext, b.dataset.cmd);
+    });
+
+    card.querySelectorAll('.apply-thm-btn').forEach((b) => {
+      b.onclick = () => {
+        const tid = b.dataset.tid;
+        const targetThm = v.themes.find(t => t.id === tid);
+        if (targetThm) {
+          if (activeThemeExt?.id === tid) {
+            applyCustomTheme(null);
+            bubble('note', 'Reverted to default theme.');
+          } else {
+            applyCustomTheme(targetThm);
+            bubble('note', `Applied ${targetThm.name} theme.`);
+          }
+          drawExtensions();
+        }
+      };
+    });
+
+    card.querySelector('.del-vsix-btn').onclick = async () => {
+      if (!confirm(`Uninstall ${v.name}?`)) return;
+      try {
+        await api.extVsixUninstall(v.id);
+        if (isThemeActive) applyCustomTheme(null);
+        bubble('note', `Uninstalled ${v.name}.`);
+        await renderExtensions();
+      } catch (err) {
+        bubble('err', 'Failed to uninstall VSIX: ' + cleanErr(err));
+      }
+    };
+    box.appendChild(card);
+  }
+
+  // Draw Built-in extensions
   for (const item of items) {
     const isTheme = item.type === 'theme';
     const isInstalled = isTheme ? (activeThemeExt?.id === item.theme?.id) : extInstalled.has(item.id);
@@ -1182,6 +1464,7 @@ function drawExtensions() {
     box.appendChild(card);
   }
 
+  // Draw Custom MCP Servers
   if (extCustom.length && (filter === 'all' || filter === 'mcp')) {
     const sec = el('div', 'gsec');
     sec.textContent = 'Custom MCP Servers';
@@ -1215,14 +1498,45 @@ function drawExtensions() {
   }
 }
 
-$('extSearch')?.addEventListener('input', () => drawExtensions());
+$('extSearch')?.addEventListener('input', () => {
+  if (extFilter === 'marketplace') {
+    clearTimeout(marketplaceDebounce);
+    marketplaceDebounce = setTimeout(() => {
+      searchMarketplace($('extSearch').value.trim());
+    }, 350);
+  } else {
+    drawExtensions();
+  }
+});
+
 document.querySelectorAll('#extFilterRow button').forEach((b) => {
   b.onclick = () => {
     document.querySelectorAll('#extFilterRow button').forEach((x) => x.classList.remove('on'));
     b.classList.add('on');
     extFilter = b.dataset.filter;
-    drawExtensions();
+    if (extFilter === 'marketplace') {
+      searchMarketplace($('extSearch')?.value || '');
+    } else {
+      drawExtensions();
+    }
   };
+});
+
+$('extInstallVsixBtn')?.addEventListener('click', async () => {
+  try {
+    const res = await api.extInstallFile();
+    if (res && !res.canceled) {
+      if (res.themes && res.themes.length) {
+        applyCustomTheme(res.themes[0]);
+        bubble('note', `Installed & applied ${res.themes[0].name} from VSIX file!`);
+      } else {
+        bubble('note', `Installed ${res.ext.name} from VSIX file.`);
+      }
+      await renderExtensions();
+    }
+  } catch (err) {
+    bubble('err', 'Failed to install VSIX: ' + cleanErr(err));
+  }
 });
 $('extCustBtn')?.addEventListener('click', async () => {
   const name = $('extCustName').value.trim();
@@ -2781,6 +3095,25 @@ addEventListener('keydown', (e) => {
   if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 'p') { e.preventDefault(); if (editor) { editor.focus(); editor.trigger('keyboard', 'editor.action.quickCommand'); } return; }
   if (e.ctrlKey && !e.shiftKey && e.key.toLowerCase() === 'g') { e.preventDefault(); goToLine(); return; }
   if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 'f') { e.preventDefault(); focusSearch(); return; }
+  // Contributed extension shortcuts (e.g. Ctrl+Escape for opencode)
+  if (Array.isArray(extVsixList)) {
+    for (const v of extVsixList) {
+      if (!Array.isArray(v.keybindings)) continue;
+      for (const kb of v.keybindings) {
+        const kStr = (kb.win || kb.key || '').toLowerCase().trim();
+        if ((kStr === 'ctrl+escape' || kStr === 'cmd+escape') && e.ctrlKey && e.key === 'Escape') {
+          e.preventDefault();
+          executeVsixCommand(v.id, kb.command);
+          return;
+        }
+        if ((kStr === 'ctrl+shift+escape' || kStr === 'cmd+shift+escape') && e.ctrlKey && e.shiftKey && e.key === 'Escape') {
+          e.preventDefault();
+          executeVsixCommand(v.id, kb.command);
+          return;
+        }
+      }
+    }
+  }
   if (e.ctrlKey && !e.shiftKey && e.key.toLowerCase() === 'k') { e.preventDefault(); showInlineAi(); return; }
   if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 'a') { e.preventDefault(); addSelectionToChat(); return; }
   if (e.ctrlKey && e.key === '`') { e.preventDefault(); togglePanel('term'); return; }

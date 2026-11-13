@@ -500,6 +500,194 @@ async function runAllTests() {
     assert.strictEqual(afterCode, 'const a = 1;\nconst b = 42;\nconst c = 3;', 'Replacement should cleanly integrate into file for diff review');
   });
 
+  console.log('\nSuite 11: VS Code Store Marketplace & VSIX Extensions Engine');
+
+  await test('ext-marketplace-search returns extensions list with metadata', async () => {
+    const searchHandler = handlers.get('ext-marketplace-search');
+    assert(searchHandler, 'ext-marketplace-search handler must be registered');
+    const res = await searchHandler(null, 'dracula');
+    assert(res && Array.isArray(res.results), 'Marketplace search must return results array');
+    assert(res.results.length > 0, 'Search results should contain items');
+    const first = res.results[0];
+    assert(first.id && first.name, 'Extension item must contain id and name');
+    assert(typeof first.downloads === 'number', 'Extension item should have downloads count');
+    assert(first.downloadUrl, 'Extension item should have downloadUrl');
+  });
+
+  await test('parseJsonWithComments parses VS Code JSON with comments and trailing commas', () => {
+    const mainCode = fs.readFileSync(path.join(__dirname, '..', 'main.js'), 'utf8');
+    const match = mainCode.match(/function parseJsonWithComments\(text\) \{([\s\S]*?)\n\}/);
+    assert(match, 'parseJsonWithComments function must exist in main.js');
+    const parseFn = new Function('text', match[1]);
+
+    const jsonWithComments = `
+      {
+        // Line comment
+        "name": "dracula-theme",
+        /* Block comment */
+        "colors": {
+          "editor.background": "#282a36",
+          "editor.foreground": "#f8f8f2", // trailing comma next
+        },
+      }
+    `;
+    const parsed = parseFn(jsonWithComments);
+    assert.strictEqual(parsed.name, 'dracula-theme');
+    assert.strictEqual(parsed.colors['editor.background'], '#282a36');
+  });
+
+  await test('convertVsCodeThemeToJeilo maps VS Code colors and token rules to Monaco + CSS', () => {
+    const mainCode = fs.readFileSync(path.join(__dirname, '..', 'main.js'), 'utf8');
+    const match = mainCode.match(/function convertVsCodeThemeToJeilo\(vsTheme, id, label\) \{([\s\S]*?)\n\}/);
+    assert(match, 'convertVsCodeThemeToJeilo function must exist in main.js');
+    const convertFn = new Function('vsTheme', 'id', 'label', match[1]);
+
+    const sampleTheme = {
+      name: 'Test Dark',
+      colors: {
+        'editor.background': '#1a1b26',
+        'sideBar.background': '#16161e',
+        'editor.foreground': '#a9b1d6',
+        'focusBorder': '#7aa2f7'
+      },
+      tokenColors: [
+        { scope: ['keyword', 'storage'], settings: { foreground: '#bb9af7' } },
+        { scope: 'comment', settings: { foreground: '#565f89', fontStyle: 'italic' } }
+      ]
+    };
+
+    const converted = convertFn(sampleTheme, 'tokyo-night-test', 'Tokyo Night Test');
+    assert.strictEqual(converted.id, 'tokyo-night-test');
+    assert.strictEqual(converted.base, 'vs-dark');
+    assert.strictEqual(converted.vars['--bg'], '#1a1b26');
+    assert.strictEqual(converted.vars['--panel'], '#16161e');
+    assert.strictEqual(converted.vars['--accent'], '#7aa2f7');
+    assert(Array.isArray(converted.rules) && converted.rules.length === 3, 'Should generate 3 token rules');
+    assert.strictEqual(converted.rules[0].token, 'keyword');
+    assert.strictEqual(converted.rules[0].foreground, 'bb9af7');
+  });
+
+  await test('VSIX extension installation from local package archive and uninstall', async () => {
+    const vsixInstall = handlers.get('ext-vsix-install');
+    const vsixUninstall = handlers.get('ext-vsix-uninstall');
+    const extListHandler = handlers.get('ext-list');
+
+    // Create a mock .vsix package in testRoot
+    const pkgJson = {
+      name: 'mock-theme',
+      publisher: 'mock-dev',
+      displayName: 'Mock Theme Extension',
+      version: '1.0.0',
+      description: 'Test VS Code extension package',
+      contributes: {
+        themes: [
+          {
+            label: 'Mock Dark Theme',
+            uiTheme: 'vs-dark',
+            path: './themes/mock-theme.json'
+          }
+        ]
+      }
+    };
+
+    const themeJson = {
+      name: 'Mock Dark',
+      colors: {
+        'editor.background': '#101014',
+        'editor.foreground': '#e0e0e0'
+      }
+    };
+
+    // Build directory structure: extension/package.json & extension/themes/mock-theme.json
+    const mockExtDir = path.join(testRoot, 'mock-pkg', 'extension');
+    fs.mkdirSync(path.join(mockExtDir, 'themes'), { recursive: true });
+    fs.writeFileSync(path.join(mockExtDir, 'package.json'), JSON.stringify(pkgJson, null, 2), 'utf8');
+    fs.writeFileSync(path.join(mockExtDir, 'themes', 'mock-theme.json'), JSON.stringify(themeJson, null, 2), 'utf8');
+
+    // Package into .vsix using tar
+    const vsixFile = path.join(testRoot, 'mock-extension.vsix');
+    const { execSync } = require('child_process');
+    execSync(`tar -cf "${vsixFile}" -C "${path.join(testRoot, 'mock-pkg')}" extension`);
+
+    // Install using ext-vsix-install with localPath
+    const installRes = await vsixInstall(null, { localPath: vsixFile });
+    assert(installRes && installRes.ok, 'VSIX installation must succeed');
+    assert.strictEqual(installRes.ext.id, 'mock-dev.mock-theme');
+    assert.strictEqual(installRes.themes.length, 1, 'Should extract 1 theme from contributes');
+    assert.strictEqual(installRes.themes[0].vars['--bg'], '#101014');
+
+    // Verify it appears in ext-list vsixInstalled
+    const listRes = await extListHandler(null);
+    assert(Array.isArray(listRes.vsixInstalled), 'ext-list must include vsixInstalled');
+    const found = listRes.vsixInstalled.find(x => x.id === 'mock-dev.mock-theme');
+    assert(found, 'Installed VSIX must be in ext-list vsixInstalled');
+
+    // Uninstall
+    const uninstRes = await vsixUninstall(null, 'mock-dev.mock-theme');
+    assert(uninstRes && uninstRes.ok, 'VSIX uninstallation must succeed');
+
+    const listAfter = await extListHandler(null);
+    const notFound = listAfter.vsixInstalled.find(x => x.id === 'mock-dev.mock-theme');
+    assert(!notFound, 'Uninstalled VSIX should no longer be in ext-list');
+  });
+
+  await test('ext-run-command executes extension contributed command via vscode shim', async () => {
+    const extRunCommand = handlers.get('ext-run-command');
+    const vsixInstall = handlers.get('ext-vsix-install');
+    const vsixUninstall = handlers.get('ext-vsix-uninstall');
+
+    // Create a command extension package
+    const cmdPkgJson = {
+      name: 'test-cli-ext',
+      publisher: 'test-pub',
+      displayName: 'Test CLI Extension',
+      version: '1.0.0',
+      main: './out/extension.js',
+      contributes: {
+        commands: [
+          { command: 'test.runCli', title: 'Run Test CLI' }
+        ],
+        keybindings: [
+          { command: 'test.runCli', key: 'ctrl+escape', win: 'ctrl+escape' }
+        ]
+      }
+    };
+
+    const cmdJs = `
+      const vscode = require('vscode');
+      function activate(ctx) {
+        ctx.subscriptions.push(vscode.commands.registerCommand('test.runCli', () => {
+          const t = vscode.window.createTerminal({ name: 'TestCLI' });
+          t.sendText('echo test-cli-ran');
+        }));
+      }
+      module.exports = { activate };
+    `;
+
+    const cmdExtDir = path.join(testRoot, 'cmd-pkg', 'extension');
+    fs.mkdirSync(path.join(cmdExtDir, 'out'), { recursive: true });
+    fs.writeFileSync(path.join(cmdExtDir, 'package.json'), JSON.stringify(cmdPkgJson, null, 2), 'utf8');
+    fs.writeFileSync(path.join(cmdExtDir, 'out', 'extension.js'), cmdJs, 'utf8');
+
+    const vsixFile = path.join(testRoot, 'test-cli.vsix');
+    const { execSync } = require('child_process');
+    execSync(`tar -cf "${vsixFile}" -C "${path.join(testRoot, 'cmd-pkg')}" extension`);
+
+    const installRes = await vsixInstall(null, { localPath: vsixFile });
+    assert(installRes && installRes.ok, 'Installation of command extension must succeed');
+    assert.strictEqual(installRes.ext.commands.length, 1, 'Must parse contributed commands');
+    assert.strictEqual(installRes.ext.commands[0].command, 'test.runCli');
+
+    // Run command via ext-run-command
+    const runRes = await extRunCommand(null, { extId: 'test-pub.test-cli-ext', commandId: 'test.runCli' });
+    assert(runRes && runRes.ok, 'ext-run-command must succeed');
+    assert.strictEqual(runRes.action.action, 'send-terminal');
+    assert.strictEqual(runRes.action.name, 'TestCLI');
+    assert.strictEqual(runRes.action.text, 'echo test-cli-ran');
+
+    await vsixUninstall(null, 'test-pub.test-cli-ext');
+  });
+
   // Clean up temporary workspace
   try {
     fs.rmSync(tempDir, { recursive: true, force: true });
