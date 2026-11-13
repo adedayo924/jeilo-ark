@@ -34,7 +34,46 @@ dialog::backdrop { background:rgba(20,40,28,.35); }
 dialog h3 { margin:0 0 6px; } dialog p { margin:6px 0 10px; color:var(--dim); font-size:12px; line-height:1.5; }
 dialog input { width:100%; box-sizing:border-box; } dialog .btns { display:flex; gap:8px; justify-content:flex-end; margin-top:12px; }
 dialog .btns .sec { background:var(--raise); color:var(--text); }
-main { display:grid; grid-template-columns:var(--left) 4px minmax(0,1fr) 4px var(--right); min-height:0; }
+main { display:grid; grid-template-columns:48px var(--left) 4px minmax(0,1fr) 4px var(--right); min-height:0; }
+#actBar { background:var(--panel); border-right:1px solid var(--line); display:flex; flex-direction:column; align-items:center; padding:8px 0; gap:6px; z-index:10; }
+.actBtn { width:38px; height:38px; border-radius:8px; display:flex; align-items:center; justify-content:center; background:transparent; border:0; color:var(--dim); cursor:pointer; padding:0; position:relative; transition:background .12s, color .12s; }
+.actBtn:hover { background:var(--raise); color:var(--text); }
+.actBtn.on { background:var(--raise); color:var(--accent); }
+.actBtn svg { width:20px; height:20px; fill:currentColor; }
+.actBadge { position:absolute; top:4px; right:4px; background:var(--accent); color:var(--accent-text); font:bold 9.5px var(--mono); min-width:14px; height:14px; border-radius:7px; display:flex; align-items:center; justify-content:center; padding:0 3px; }
+#sideTitle { font-size:11px; font-weight:700; letter-spacing:0.8px; text-transform:uppercase; color:var(--dim); }
+.file-ico { width:15px; height:15px; flex:none; display:inline-flex; align-items:center; justify-content:center; }
+.file-ico svg { width:15px; height:15px; }
+
+/* Inline AI bar (Ctrl+K) */
+#inlineAiBar { position:absolute; top:45px; left:50%; transform:translateX(-50%); width:min(580px, 90%); background:var(--bg); border:1px solid var(--line); border-radius:10px; box-shadow:0 14px 40px rgba(0,0,0,0.3); z-index:45; padding:8px 12px; display:grid; gap:8px; border-top:2px solid var(--accent); }
+#inlineAiHead { display:flex; gap:8px; align-items:center; }
+.inlineAiSparkle { font-size:16px; color:var(--accent); flex:none; }
+#inlineAiInput { flex:1; font:13px var(--mono); padding:6px 10px; border-radius:6px; background:var(--panel); border:1px solid var(--line); }
+#inlineAiInput:focus { outline:none; border-color:var(--accent); }
+#inlineAiHead button { padding:4px 10px; font-size:11.5px; }
+#inlineAiStatus { font-size:11.5px; color:var(--dim); display:flex; align-items:center; gap:6px; }
+
+/* Multi-terminal tabs */
+#termTabsBar { display:flex; align-items:center; gap:4px; overflow-x:auto; }
+.termTab { display:inline-flex; align-items:center; gap:6px; padding:2px 8px; font-size:11px; font-weight:500; border-radius:4px; color:var(--dim); background:transparent; cursor:pointer; }
+.termTab.on { background:var(--raise); color:var(--text); }
+.termTab .tx { opacity:0.5; font-size:11px; padding:0 2px; }
+.termTab .tx:hover { opacity:1; color:var(--bad); }
+#termNewTab { padding:1px 6px; font-size:13px; font-weight:bold; }
+#termShellSelect { font-size:11px; padding:1px 5px; border-radius:4px; background:var(--panel); color:var(--dim); border:1px solid var(--line); }
+
+/* Chat sessions drawer */
+#chatSessionsDrawer { border-bottom:1px solid var(--line); background:var(--bg); max-height:220px; overflow-y:auto; padding:8px; display:grid; gap:6px; }
+#chatSessionsHead { display:flex; align-items:center; gap:8px; padding-bottom:6px; border-bottom:1px solid var(--line); font-size:11.5px; }
+#chatSessionsList { display:flex; flex-direction:column; gap:4px; }
+.chatSessionCard { padding:6px 8px; border-radius:6px; display:flex; align-items:center; justify-content:space-between; cursor:pointer; font-size:11.5px; border:1px solid transparent; }
+.chatSessionCard:hover { background:var(--raise); }
+.chatSessionCard.on { background:var(--raise); border-color:var(--accent); }
+.chatSessionTitle { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:75%; }
+.chatSessionTime { font-size:10px; color:var(--dim); margin-left:auto; margin-right:6px; }
+.chatSessionDel { opacity:0.5; padding:0 4px; font-size:11px; }
+.chatSessionDel:hover { opacity:1; color:var(--bad); }
 .split { background:var(--line); cursor:col-resize; transition:background .15s; } .split:hover,.split.drag { background:var(--accent); }
 #side { background:var(--panel); display:grid; grid-template-rows:auto auto minmax(0,1fr); min-height:0; }
 #sideHead { padding:8px 12px; display:flex; justify-content:space-between; align-items:center; color:var(--dim); gap:6px; }
@@ -224,9 +263,29 @@ footer kbd { font:10px var(--mono); border:1px solid var(--line); border-radius:
     <button id="theme" class="ghost" title="Switch theme"></button>
   </header>
   <main id="main">
+    <nav id="actBar" aria-label="Activity Bar">
+      <button class="actBtn on" data-view="files" title="Explorer (Ctrl+Shift+E)">
+        <svg viewBox="0 0 24 24"><path d="M4 4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8L10 4H4z"/></svg>
+      </button>
+      <button class="actBtn" data-view="search" title="Search in Files (Ctrl+Shift+F)">
+        <svg viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
+      </button>
+      <button class="actBtn" data-view="git" title="Source Control (Ctrl+Shift+G)">
+        <svg viewBox="0 0 24 24"><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><path d="M6 9v6m12-6v1a5 5 0 0 1-5 5H9"/></svg>
+        <span id="gitBadge" class="actBadge" hidden>0</span>
+      </button>
+      <button class="actBtn" data-view="ext" title="Extensions Hub (Ctrl+Shift+X)">
+        <svg viewBox="0 0 24 24"><path d="M20.5 11H19V7c0-1.1-.9-2-2-2h-4V3.5a2.5 2.5 0 0 0-5 0V5H4c-1.1 0-1.99.9-1.99 2v3.8H3.5c1.49 0 2.7 1.21 2.7 2.7s-1.21 2.7-2.7 2.7H2V20c0 1.1.9 2 2 2h3.8v-1.5c0-1.49 1.21-2.7 2.7-2.7 1.49 0 2.7 1.21 2.7 2.7V22H17c1.1 0 2-.9 2-2v-4h1.5a2.5 2.5 0 0 0 0-5z"/></svg>
+      </button>
+      <div class="sp"></div>
+      <button class="actBtn" id="actSettings" title="Shortcuts & Command Palette (Ctrl+Shift+P / F1)">
+        <svg viewBox="0 0 24 24"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>
+      </button>
+    </nav>
     <aside id="side">
       <div id="sideHead">
-        <span class="sideTabs"><button data-view="files" class="on">Files</button><button data-view="git">Git</button><button data-view="ext">Extensions</button></span>
+        <span id="sideTitle">EXPLORER</span>
+        <span class="sp"></span>
         <button class="ghost" id="newFileBtn" title="New file">+ File</button>
         <button class="ghost" id="newFolderBtn" title="New folder">+ Folder</button>
         <button class="ghost" id="refresh" title="Refresh">↻</button>
@@ -260,6 +319,15 @@ footer kbd { font:10px var(--mono); border:1px solid var(--line); border-radius:
       <div id="tabs"></div>
       <div id="editorWrap">
         <div id="editor"></div>
+        <div id="inlineAiBar" hidden>
+          <div id="inlineAiHead">
+            <span class="inlineAiSparkle">✨</span>
+            <input id="inlineAiInput" placeholder="Edit with AI or describe what to generate (Enter to submit, Esc to cancel)..." autocomplete="off" spellcheck="false">
+            <button id="inlineAiBtn">Generate</button>
+            <button id="inlineAiCancel" class="ghost" title="Cancel (Esc)">✕</button>
+          </div>
+          <div id="inlineAiStatus" hidden><span class="spin"></span> <span id="inlineAiTitle">Thinking…</span></div>
+        </div>
         <div id="empty"><div><div style="font-size:16px;color:var(--text)">No file open</div>Pick a file from the sidebar, or ask the assistant to open one.</div></div>
         <div id="diffOverlay" hidden>
           <div id="diffHead"><b id="diffTitle">Review change</b><span id="diffStat"></span></div>
@@ -271,6 +339,14 @@ footer kbd { font:10px var(--mono); border:1px solid var(--line); border-radius:
       <section id="panel" hidden>
         <div id="panelHead">
           <span class="ptabs"><button data-panel="term" class="on">Terminal</button><button data-panel="preview">Preview</button></span>
+          <div id="termTabsBar">
+            <div id="termTabs"></div>
+            <button id="termNewTab" class="ghost" title="New Terminal tab (Ctrl+Shift+`)">+</button>
+            <select id="termShellSelect" title="Terminal Shell">
+              <option value="powershell">PowerShell</option>
+              <option value="cmd">Command Prompt</option>
+            </select>
+          </div>
           <span class="sp"></span>
           <span id="panelStatus"></span>
           <button class="ghost" id="panelClear" title="Clear terminal">Clear</button>
@@ -289,7 +365,23 @@ footer kbd { font:10px var(--mono); border:1px solid var(--line); border-radius:
     </section>
     <div class="split" id="s2"></div>
     <aside id="chat">
-      <div id="chatHead"><span>Assistant<span id="rulesTag" hidden>rules</span></span><span><button class="ghost" id="rulesBtn" title="Open or create the project rules file">Rules</button><button class="ghost" id="clear">New chat</button></span></div>
+      <div id="chatHead">
+        <span>Assistant<span id="rulesTag" hidden>rules</span></span>
+        <span>
+          <button class="ghost" id="chatSessionsBtn" title="Chat sessions history">History (<span id="chatCount">1</span>)</button>
+          <button class="ghost" id="rulesBtn" title="Open or create the project rules file">Rules</button>
+          <button class="ghost" id="clear" title="Start a fresh chat thread">New chat</button>
+        </span>
+      </div>
+      <div id="chatSessionsDrawer" hidden>
+        <div id="chatSessionsHead">
+          <b>Chat Sessions</b>
+          <span class="sp"></span>
+          <button class="ghost" id="chatNewSessionBtn">+ New Chat</button>
+          <button class="ghost" id="chatDrawerClose">✕</button>
+        </div>
+        <div id="chatSessionsList"></div>
+      </div>
       <div id="log"></div>
       <div id="status" hidden><span class="spin"></span><span id="statusText"></span></div>
       <div id="inputRow"><textarea id="prompt" placeholder="Ask about your code (Enter to send, Shift+Enter for a new line)"></textarea><button id="send">Send</button></div>
@@ -459,6 +551,7 @@ require(['vs/editor/editor.main'], () => {
   $('fileInfo').title = 'Click to jump to line (Ctrl+G)';
   $('fileInfo').onclick = () => goToLine();
   editor.addAction({ id: 'jeilo.addSelection', label: 'Add selection to chat', keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyMod.Shift | monaco.KeyCode.KeyA], run: () => addSelectionToChat() });
+  editor.addAction({ id: 'jeilo.inlineAi', label: 'Inline AI Edit (Ctrl+K)', keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyK], run: () => showInlineAi() });
   editor.addAction({ id: 'jeilo.quickOpen', label: 'Quick open file', keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyP], run: () => openQuick() });
   editor.addAction({ id: 'jeilo.searchFiles', label: 'Search in files', keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyMod.Shift | monaco.KeyCode.KeyF], run: () => focusSearch() });
   editor.addAction({ id: 'jeilo.terminal', label: 'Toggle terminal', keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyCode.Backquote], run: () => togglePanel('term') });
@@ -474,6 +567,58 @@ require(['vs/editor/editor.main'], () => {
 const DOT = { js: '#e5c07b', ts: '#61afef', py: '#7fbf7f', html: '#e06c75', css: '#56b6c2', json: '#d19a66', md: '#9aa5b8' };
 const dotColor = (n) => DOT[n.split('.').pop().toLowerCase()] || '#4a5b7c';
 
+// ---------- SVG Icons & Activity Bar ----------
+function fileIcon(name, isDir, isOpen) {
+  if (isDir) {
+    return `<span class="file-ico">${isOpen ? 
+      '<svg viewBox="0 0 16 16"><path d="M1.5 3A1.5 1.5 0 0 1 3 1.5h3.88a1.5 1.5 0 0 1 1.06.44l1.12 1.12A1.5 1.5 0 0 0 10.12 3.5H13A1.5 1.5 0 0 1 14.5 5v1H3.5a1.5 1.5 0 0 0-1.42 1.002L1.5 8.5V3z" fill="#dcb67a"/><path d="M2.085 7.002A1.5 1.5 0 0 1 3.5 6h11a1.5 1.5 0 0 1 1.415 1.998l-1.5 4.5A1.5 1.5 0 0 1 13 13.5H2a1.5 1.5 0 0 1-1.415-1.998l1.5-4.5z" fill="#e5c890"/></svg>' :
+      '<svg viewBox="0 0 16 16"><path d="M1.5 3A1.5 1.5 0 0 1 3 1.5h3.88a1.5 1.5 0 0 1 1.06.44l1.12 1.12A1.5 1.5 0 0 0 10.12 3.5H13A1.5 1.5 0 0 1 14.5 5v7.5A1.5 1.5 0 0 1 13 14H3a1.5 1.5 0 0 1-1.5-1.5V3z" fill="#dcb67a"/></svg>'
+    }</span>`;
+  }
+  const ext = String(name || '').split('.').pop().toLowerCase();
+  const base = String(name || '').toLowerCase();
+  if (base === '.gitignore' || base === '.gitmodules') {
+    return '<span class="file-ico"><svg viewBox="0 0 16 16"><circle cx="12" cy="4" r="2" fill="#f05032"/><circle cx="4" cy="12" r="2" fill="#f05032"/><circle cx="4" cy="4" r="2" fill="#f05032"/><path d="M4 6v4m8-4v1a3 3 0 0 1-3 3H6" stroke="#f05032" stroke-width="1.2" fill="none"/></svg></span>';
+  }
+  if (ext === 'js' || ext === 'mjs' || ext === 'cjs') {
+    return '<span class="file-ico"><svg viewBox="0 0 16 16"><rect width="14" height="14" x="1" y="1" rx="2" fill="#f7df1e"/><path d="M7 11.5c0 .8-.5 1.2-1.3 1.2-.7 0-1.2-.4-1.3-.9l.8-.5c.1.3.3.5.5.5.3 0 .4-.2.4-.5V6h1v5.5zm4.7-.2c0 .8-.6 1.4-1.5 1.4-.9 0-1.5-.5-1.6-1.2l.9-.4c.1.4.4.7.7.7.3 0 .5-.2.5-.5 0-.4-.3-.6-.8-.8l-.3-.1c-.7-.3-1.1-.7-1.1-1.3 0-.8.6-1.3 1.4-1.3.8 0 1.3.5 1.4 1.1l-.8.4c-.1-.3-.3-.6-.6-.6-.3 0-.5.2-.5.4 0 .3.2.5.7.7l.3.1c.8.3 1.3.7 1.3 1.5z" fill="#000"/></svg></span>';
+  }
+  if (ext === 'ts') {
+    return '<span class="file-ico"><svg viewBox="0 0 16 16"><rect width="14" height="14" x="1" y="1" rx="2" fill="#3178c6"/><path d="M3.5 6.5h3.4V5H2v1.5h1.5v6.2h1.5V6.5zm7.3 2.8c0-.9-.7-1.4-1.6-1.8l-.4-.2c-.4-.2-.6-.3-.6-.6 0-.3.2-.5.6-.5.4 0 .6.2.7.5l1.2-.6c-.3-.7-.9-1.1-1.9-1.1-1.1 0-1.9.6-1.9 1.7 0 .8.6 1.3 1.5 1.7l.4.2c.5.2.7.4.7.7 0 .3-.3.5-.7.5-.5 0-.8-.3-.9-.7l-1.3.5c.3 1 1.1 1.4 2.2 1.4 1.2 0 2-.7 2-1.7z" fill="#fff"/></svg></span>';
+  }
+  if (ext === 'jsx' || ext === 'tsx') {
+    return '<span class="file-ico"><svg viewBox="0 0 16 16"><ellipse cx="8" cy="8" rx="6.5" ry="2.6" stroke="#61dafb" stroke-width="1.1" fill="none" transform="rotate(30 8 8)"/><ellipse cx="8" cy="8" rx="6.5" ry="2.6" stroke="#61dafb" stroke-width="1.1" fill="none" transform="rotate(90 8 8)"/><ellipse cx="8" cy="8" rx="6.5" ry="2.6" stroke="#61dafb" stroke-width="1.1" fill="none" transform="rotate(150 8 8)"/><circle cx="8" cy="8" r="1.3" fill="#61dafb"/></svg></span>';
+  }
+  if (ext === 'json') {
+    return '<span class="file-ico"><svg viewBox="0 0 16 16"><path d="M5.5 2C4.12 2 3 3.12 3 4.5v1.25c0 .69-.56 1.25-1.25 1.25H1v2h.75C2.44 9 3 9.56 3 10.25V11.5C3 12.88 4.12 14 5.5 14H7v-1.5H5.5c-.28 0-.5-.22-.5-.5v-1.5c0-1.1-.9-2-2-2v-1c1.1 0 2-.9 2-2V4c0-.28.22-.5.5-.5H7V2H5.5zm5 0C11.88 2 13 3.12 13 4.5v1.25c0 .69.56 1.25 1.25 1.25H15v2h-.75c-.69 0-1.25.56-1.25 1.25V11.5c0 1.38-1.12 2.5-2.5 2.5H9v-1.5h1.5c.28 0 .5-.22.5-.5v-1.5c0-1.1.9-2 2-2v-1c-1.1 0-2-.9-2-2V4c0-.28-.22-.5-.5-.5H9V2h1.5z" fill="#cbcb41"/></svg></span>';
+  }
+  if (ext === 'html' || ext === 'htm') {
+    return '<span class="file-ico"><svg viewBox="0 0 16 16"><path d="M2.5 1.5l1.1 12.3 4.4 1.2 4.4-1.2L13.5 1.5H2.5zm8.9 4H5.9l.1 1.5h5.3l-.3 3.6-2.9.8-2.9-.8-.2-2.1h1.5l.1 1 1.5.4 1.5-.4.1-1.6H4.2l-.4-4.5h7.8l-.2 1.6z" fill="#e34f26"/></svg></span>';
+  }
+  if (ext === 'css' || ext === 'scss') {
+    return '<span class="file-ico"><svg viewBox="0 0 16 16"><path d="M2.5 1.5l1.1 12.3 4.4 1.2 4.4-1.2L13.5 1.5H2.5zm8.9 3.5H4.6l.4 4.5h5.4l-.3 3-2.1.6-2.1-.6-.1-1.4H4.4l.2 2.4 3.4 1 3.4-1 .5-5.5H6.2l-.2-1.5h5.6l.2-1.5z" fill="#264de4"/></svg></span>';
+  }
+  if (ext === 'py') {
+    return '<span class="file-ico"><svg viewBox="0 0 16 16"><path d="M7.9 1.5c-2.3 0-2.2 1-2.2 1v1h4.4v.5H4.7c-1 0-1.8.6-1.8 1.8 0 1.1.7 1.7 1.8 1.7h.9v-.8c0-.9.8-1.7 1.7-1.7h2.8c.8 0 1.5-.6 1.5-1.5v-2c0-.9-.7-1-1.7-1zm-1.1.8a.6.6 0 1 1 0 1.2.6.6 0 0 1 0-1.2z" fill="#3572A5"/><path d="M8.1 14.5c2.3 0 2.2-1 2.2-1v-1H5.9v-.5h5.4c1 0 1.8-.6 1.8-1.8 0-1.1-.7-1.7-1.8-1.7h-.9v.8c0 .9-.8 1.7-1.7 1.7H5.9c-.8 0-1.5.6-1.5 1.5v2c0 .9.7 1 1.7 1zm1.1-.8a.6.6 0 1 1 0-1.2.6.6 0 0 1 0 1.2z" fill="#FFD43B"/></svg></span>';
+  }
+  if (ext === 'md') {
+    return '<span class="file-ico"><svg viewBox="0 0 16 16"><rect width="14" height="10" x="1" y="3" rx="1.5" fill="#42a5f5"/><path d="M3 10V6l1.5 2L6 6v4H4.8V8L3.6 6.5V10H3zm7-1.5V6H8.8v2.5H7.5l2 2.5 2-2.5H10z" fill="#fff"/></svg></span>';
+  }
+  if (ext === 'rs') {
+    return '<span class="file-ico"><svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="5" stroke="#dea584" stroke-width="1.5" fill="none"/><path d="M6 6h2.5c.8 0 1.5.4 1.5 1.2s-.7 1.3-1.5 1.3H7v1.5H6V6zm1 1.5h1.2c.4 0 .8-.2.8-.5s-.4-.5-.8-.5H7v1zm2 2.5l1.5 2h-1.2L8 10h1z" fill="#dea584"/></svg></span>';
+  }
+  if (ext === 'go') {
+    return '<span class="file-ico"><svg viewBox="0 0 16 16"><path d="M3 8c0-2.8 2.2-5 5-5s5 2.2 5 5-2.2 5-5 5-5-2.2-5-5zm7.5.8c.3 0 .5-.2.5-.5s-.2-.5-.5-.5H8v1h2.5z" fill="#00add8"/></svg></span>';
+  }
+  if (['sh', 'bash', 'zsh', 'ps1', 'bat', 'cmd'].includes(ext)) {
+    return '<span class="file-ico"><svg viewBox="0 0 16 16"><rect width="14" height="11" x="1" y="2.5" rx="1.5" fill="#1e293b"/><path d="M3.5 5.5l2.5 2.5-2.5 2.5M7 10.5h5" stroke="#4ade80" stroke-width="1.2" fill="none"/></svg></span>';
+  }
+  if (['yml', 'yaml', 'toml', 'env', 'config'].includes(ext) || base.includes('config')) {
+    return '<span class="file-ico"><svg viewBox="0 0 16 16"><path d="M8 5a3 3 0 1 0 0 6 3 3 0 0 0 0-6zm-4.7 3c0-.3.04-.6.1-.9l-1.3-1 1-1.7 1.6.6c.4-.4.9-.7 1.4-.9L6.3 2h2l.2 1.6c.5.2 1 .5 1.4.9l1.6-.6 1 1.7-1.3 1c.06.3.1.6.1.9s-.04.6-.1.9l1.3 1-1 1.7-1.6-.6c-.4.4-.9.7-1.4.9l-.2 1.6h-2l-.2-1.6c-.5-.2-1-.5-1.4-.9l-1.6.6-1-1.7 1.3-1c-.06-.3-.1-.6-.1-.9z" fill="#9ca3af"/></svg></span>';
+  }
+  return '<span class="file-ico"><svg viewBox="0 0 16 16"><path d="M3 1.5A1.5 1.5 0 0 0 1.5 3v10A1.5 1.5 0 0 0 3 14.5h10a1.5 1.5 0 0 0 1.5-1.5V6L9.5 1.5H3zm6 1v3.5h3.5L9 2.5z" fill="#94a3b8"/></svg></span>';
+}
+
 const expanded = new Set();
 async function renderDir(rel, box, depth) {
   const items = await api.listDir(rel);
@@ -485,7 +630,7 @@ async function renderDir(rel, box, depth) {
       const set = async (open) => {
         if (open) { expanded.add(full); if (!kids.dataset.l) { kids.dataset.l = 1; await renderDir(full, kids, depth + 1); } } else expanded.delete(full);
         kids.hidden = !open;
-        row.innerHTML = `<span class="chev">${open ? '▾' : '▸'}</span><span style="flex:1;overflow:hidden;text-overflow:ellipsis">${esc(it.name)}</span><span class="row-actions"><span class="ren-btn" title="Rename folder">✎</span><span class="del-btn" title="Delete folder">✕</span></span>`;
+        row.innerHTML = `<span class="chev">${open ? '▾' : '▸'}</span>${fileIcon(it.name, true, open)}<span style="flex:1;overflow:hidden;text-overflow:ellipsis;margin-left:4px">${esc(it.name)}</span><span class="row-actions"><span class="ren-btn" title="Rename folder">✎</span><span class="del-btn" title="Delete folder">✕</span></span>`;
         const ren = row.querySelector('.ren-btn');
         ren.onclick = async (e) => {
           e.stopPropagation();
@@ -529,7 +674,7 @@ async function renderDir(rel, box, depth) {
       row.onclick = () => set(kids.hidden);
       await set(expanded.has(full));
     } else {
-      row.innerHTML = `<span class="dot" style="background:${dotColor(it.name)}"></span><span style="flex:1;overflow:hidden;text-overflow:ellipsis">${esc(it.name)}</span><span class="row-actions"><span class="ren-btn" title="Rename file">✎</span><span class="del-btn" title="Delete file">✕</span></span>`;
+      row.innerHTML = `${fileIcon(it.name, false, false)}<span style="flex:1;overflow:hidden;text-overflow:ellipsis;margin-left:4px">${esc(it.name)}</span><span class="row-actions"><span class="ren-btn" title="Rename file">✎</span><span class="del-btn" title="Delete file">✕</span></span>`;
       row.dataset.path = full; row.onclick = () => openFile(full);
       const ren = row.querySelector('.ren-btn');
       ren.onclick = async (e) => {
@@ -578,7 +723,7 @@ function renderTabs() {
   $('tabs').innerHTML = '';
   for (const [rel, t] of tabs) {
     const tab = el('div', 'tab' + (rel === current ? ' on' : ''));
-    tab.innerHTML = `<span>${esc(rel.split('/').pop())}</span>${t.dirty ? '<span class="mod" title="Unsaved"></span>' : ''}<span class="x" title="Close">✕</span>`;
+    tab.innerHTML = `${fileIcon(rel.split('/').pop(), false, false)}<span>${esc(rel.split('/').pop())}</span>${t.dirty ? '<span class="mod" title="Unsaved"></span>' : ''}<span class="x" title="Close">✕</span>`;
     tab.title = rel; tab.onclick = () => activate(rel);
     tab.querySelector('.x').onclick = (e) => { e.stopPropagation(); closeTab(rel); };
     $('tabs').appendChild(tab);
@@ -909,19 +1054,40 @@ let searchTimer = 0, searchSeq = 0;
 const searchQuery = () => $('search').value.trim();
 function setSideView(view) {
   sideView = view;
-  document.querySelectorAll('.sideTabs button').forEach((b) => b.classList.toggle('on', b.dataset.view === view));
+  document.querySelectorAll('.actBtn[data-view]').forEach((b) => b.classList.toggle('on', b.dataset.view === view));
+  const titles = { files: 'EXPLORER', search: 'SEARCH', git: 'SOURCE CONTROL', ext: 'EXTENSIONS' };
+  if ($('sideTitle')) $('sideTitle').textContent = titles[view] || 'EXPLORER';
   const hasQ = !!searchQuery();
-  $('searchWrap').hidden = view === 'ext';
+  $('searchWrap').hidden = (view === 'ext' || view === 'git');
   $('newFileBtn').hidden = view !== 'files';
   $('newFolderBtn').hidden = view !== 'files';
   $('tree').hidden = view !== 'files' || hasQ;
   $('searchResults').hidden = view !== 'files' || !hasQ;
   $('gitPanel').hidden = view !== 'git';
   $('extPanel').hidden = view !== 'ext';
+  if (view === 'search') { $('searchWrap').hidden = false; $('search')?.focus(); }
   if (view === 'git') { refreshGithub(); refreshGit().catch(() => {}); }
   if (view === 'ext') { renderExtensions().catch(() => {}); }
 }
-document.querySelectorAll('.sideTabs button').forEach((b) => { b.onclick = () => setSideView(b.dataset.view); });
+document.querySelectorAll('.actBtn[data-view]').forEach((b) => {
+  b.onclick = () => {
+    const v = b.dataset.view;
+    if (sideView === v && !$('side').hidden) {
+      $('side').hidden = true;
+      $('s1').hidden = true;
+      document.documentElement.style.setProperty('--left', '0px');
+    } else {
+      $('side').hidden = false;
+      $('s1').hidden = false;
+      document.documentElement.style.setProperty('--left', '250px');
+      setSideView(v);
+    }
+    editor?.layout();
+  };
+});
+$('actSettings')?.addEventListener('click', () => {
+  if (editor) { editor.focus(); editor.trigger('keyboard', 'editor.action.quickCommand'); }
+});
 
 // ---------- Extensions Hub ----------
 let extFilter = 'all', extCatalog = [], extInstalled = new Set(), extCustom = [];
@@ -1182,11 +1348,97 @@ $('quickInput').addEventListener('keydown', (e) => {
 });
 $('quick').addEventListener('mousedown', (e) => { if (e.target === $('quick')) closeQuick(); });
 
-// ---------- Bottom panel: terminal + preview ----------
+// ---------- Bottom panel: terminal tabs + preview ----------
 let panelMode = 'term', previewUrl = '', currentTermId = null;
 const termOut = $('termOut'), panelEl = $('panel'), panelResizeEl = $('panelResize');
 const runningTerms = new Set();
-let termHistory = [], termHistIdx = 0;
+
+let termTabSeq = 1;
+let termTabsList = [
+  { id: 'term-1', name: 'Terminal 1', out: 'Jeilo ARK terminal. Commands run in the project root.\n', currentProcId: null, history: [], histIdx: 0 }
+];
+let activeTermTabId = 'term-1';
+
+function getActiveTermTab() {
+  return termTabsList.find(t => t.id === activeTermTabId) || termTabsList[0];
+}
+
+function renderTermTabs() {
+  const box = $('termTabs');
+  if (!box) return;
+  box.innerHTML = '';
+  termTabsList.forEach((tab) => {
+    const elTab = el('div', 'termTab' + (tab.id === activeTermTabId ? ' on' : ''));
+    elTab.innerHTML = `<span>${esc(tab.name)}</span>` + (termTabsList.length > 1 ? `<span class="tx" title="Close terminal">✕</span>` : '');
+    elTab.onclick = (e) => {
+      if (e.target.classList.contains('tx')) {
+        e.stopPropagation();
+        closeTermTab(tab.id);
+        return;
+      }
+      switchTermTab(tab.id);
+    };
+    box.appendChild(elTab);
+  });
+}
+
+function switchTermTab(id) {
+  activeTermTabId = id;
+  const tab = getActiveTermTab();
+  currentTermId = tab.currentProcId;
+  termOut.innerHTML = ansiToHtml(tab.out);
+  termOut.scrollTop = termOut.scrollHeight;
+  if (currentTermId && runningTerms.has(currentTermId)) {
+    $('termIn').placeholder = 'Process running in ' + tab.name + ' (type to send input, Ctrl+C to stop)...';
+  } else {
+    $('termIn').placeholder = 'Type a command, Enter to run, Ctrl+C to stop';
+  }
+  renderTermTabs();
+  $('termIn').focus();
+}
+
+function createTermTab() {
+  termTabSeq++;
+  const shell = $('termShellSelect')?.value || 'powershell';
+  const newTab = {
+    id: 'term-' + termTabSeq,
+    name: 'Terminal ' + termTabSeq,
+    out: `Jeilo ARK terminal (${shell}). Commands run in the project root.\n`,
+    currentProcId: null,
+    history: [],
+    histIdx: 0
+  };
+  termTabsList.push(newTab);
+  switchTermTab(newTab.id);
+}
+
+function closeTermTab(id) {
+  const tab = termTabsList.find(t => t.id === id);
+  if (!tab) return;
+  if (tab.currentProcId && runningTerms.has(tab.currentProcId)) {
+    api.termKill(tab.currentProcId).catch(() => {});
+  }
+  const idx = termTabsList.indexOf(tab);
+  termTabsList = termTabsList.filter(t => t.id !== id);
+  if (termTabsList.length === 0) {
+    termTabSeq++;
+    termTabsList = [{ id: 'term-' + termTabSeq, name: 'Terminal ' + termTabSeq, out: '', currentProcId: null, history: [], histIdx: 0 }];
+  }
+  if (activeTermTabId === id) {
+    const nextTab = termTabsList[Math.min(idx, termTabsList.length - 1)];
+    switchTermTab(nextTab.id);
+  } else {
+    renderTermTabs();
+  }
+}
+
+$('termNewTab')?.addEventListener('click', () => createTermTab());
+$('termShellSelect')?.addEventListener('change', () => {
+  const shell = $('termShellSelect').value;
+  const tab = getActiveTermTab();
+  tab.out += `\n[Switched default shell to ${shell}]\n`;
+  if (tab.id === activeTermTabId) termAppend(`\n[Switched default shell to ${shell}]\n`, 'meta');
+});
 const savedPanelH = parseInt(store.get('panelH', ''), 10);
 if (savedPanelH) document.documentElement.style.setProperty('--panelH', Math.min(600, Math.max(120, savedPanelH)) + 'px');
 const ANSI_COLORS = {
@@ -1237,12 +1489,19 @@ function ansiToHtml(raw) {
   if (style) out += '</span>';
   return out;
 }
-function termAppend(text, cls) {
-  const span = el('span', cls || '');
-  span.innerHTML = ansiToHtml(text);
-  termOut.appendChild(span);
-  while (termOut.textContent.length > 260000 && termOut.firstChild) termOut.firstChild.remove();
-  termOut.scrollTop = termOut.scrollHeight;
+function termAppend(text, cls, targetTabId) {
+  const target = targetTabId ? termTabsList.find(t => t.id === targetTabId) : getActiveTermTab();
+  if (target) {
+    target.out += text;
+    if (target.out.length > 300000) target.out = target.out.slice(-300000);
+  }
+  if (!targetTabId || targetTabId === activeTermTabId) {
+    const span = el('span', cls || '');
+    span.innerHTML = ansiToHtml(text);
+    termOut.appendChild(span);
+    while (termOut.textContent.length > 260000 && termOut.firstChild) termOut.firstChild.remove();
+    termOut.scrollTop = termOut.scrollHeight;
+  }
 }
 function setPanelMode(mode) {
   panelMode = mode;
@@ -1268,43 +1527,85 @@ document.querySelectorAll('.ptabs button').forEach((b) => { b.onclick = () => se
 $('panelClose').onclick = closePanel;
 $('termBtn').onclick = () => togglePanel('term');
 $('previewBtn').onclick = () => { openPanel('preview'); if (!previewUrl) startPreview(); };
-$('panelClear').onclick = () => { termOut.innerHTML = ''; };
+$('panelClear').onclick = () => { const t = getActiveTermTab(); t.out = ''; termOut.innerHTML = ''; };
 $('panelStop').onclick = async () => { await api.termKill(); await api.previewStop().catch(() => {}); $('panelStatus').textContent = 'Stopped'; };
 $('termIn').addEventListener('keydown', async (e) => {
+  const curTab = getActiveTermTab();
   if (e.key === 'Enter') {
     e.preventDefault();
-    const cmd = $('termIn').value.trim();
-    if (!cmd) return;
+    const cmd = $('termIn').value;
     $('termIn').value = '';
-    termHistory.push(cmd); termHistIdx = termHistory.length;
-    try { const r = await api.termRun(cmd); currentTermId = r.id; }
-    catch (err) { termAppend(err.message + '\n', 'err'); }
+    if (curTab.currentProcId && runningTerms.has(curTab.currentProcId)) {
+      curTab.history.push(cmd); curTab.histIdx = curTab.history.length;
+      termAppend(cmd + '\n', '', curTab.id);
+      try { await api.termInput({ id: curTab.currentProcId, data: cmd + '\r\n' }); }
+      catch (err) { termAppend(err.message + '\n', 'err', curTab.id); }
+      return;
+    }
+    if (!cmd.trim()) return;
+    curTab.history.push(cmd.trim()); curTab.histIdx = curTab.history.length;
+    try {
+      const selectedShell = $('termShellSelect')?.value || 'powershell';
+      const r = await api.termRun(cmd.trim(), { shell: selectedShell });
+      curTab.currentProcId = r.id;
+      currentTermId = r.id;
+    } catch (err) {
+      termAppend(err.message + '\n', 'err', curTab.id);
+    }
   } else if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
     e.preventDefault();
-    if (!termHistory.length) return;
-    termHistIdx = Math.max(0, Math.min(termHistory.length, termHistIdx + (e.key === 'ArrowUp' ? -1 : 1)));
-    $('termIn').value = termHistory[termHistIdx] || '';
+    if (!curTab.history.length) return;
+    curTab.histIdx = Math.max(0, Math.min(curTab.history.length, curTab.histIdx + (e.key === 'ArrowUp' ? -1 : 1)));
+    $('termIn').value = curTab.history[curTab.histIdx] || '';
   } else if (e.ctrlKey && e.key.toLowerCase() === 'c') {
     e.preventDefault();
-    if (currentTermId && runningTerms.has(currentTermId)) api.termKill(currentTermId);
+    if (curTab.currentProcId && runningTerms.has(curTab.currentProcId)) api.termKill(curTab.currentProcId);
     else $('termIn').value = '';
+  } else if (e.ctrlKey && e.key.toLowerCase() === 'd') {
+    e.preventDefault();
+    if (curTab.currentProcId && runningTerms.has(curTab.currentProcId)) {
+      api.termEndInput(curTab.currentProcId);
+    }
   }
 });
 api.onTermStart(({ id, command, source }) => {
   runningTerms.add(id);
+  let targetTab = termTabsList.find(t => t.currentProcId === id);
+  if (!targetTab) {
+    targetTab = getActiveTermTab();
+    targetTab.currentProcId = id;
+  }
+  currentTermId = id;
   if (source === 'agent') openPanel('term');
   const tag = source === 'agent' ? '[agent] ' : source === 'preview' ? '[preview] ' : source === 'mcp' ? '[mcp] ' : '';
-  termAppend((source === 'user' ? '' : '\n') + '$ ' + tag + command + '\n', 'cmd');
+  termAppend((source === 'user' ? '' : '\n') + '$ ' + tag + command + '\n', 'cmd', targetTab.id);
   $('panelStatus').textContent = source === 'preview' ? 'Preview server running' : source === 'mcp' ? 'MCP: ' + command : 'Running…';
+  if (targetTab.id === activeTermTabId) {
+    $('termIn').placeholder = 'Process running (type to send input, Ctrl+C to stop, Ctrl+D for EOF)...';
+  }
 });
-api.onTermData(({ id, data }) => { if (data) termAppend(data); });
+api.onTermData(({ id, data }) => {
+  if (!data) return;
+  const targetTab = termTabsList.find(t => t.currentProcId === id);
+  termAppend(data, '', targetTab ? targetTab.id : activeTermTabId);
+});
 api.onTermExit(({ id, code }) => {
   runningTerms.delete(id);
-  termAppend('\n[exit ' + code + ']\n', code === 0 ? 'meta' : 'err');
+  const targetTab = termTabsList.find(t => t.currentProcId === id);
+  if (targetTab) {
+    targetTab.currentProcId = null;
+    termAppend('\n[exit ' + code + ']\n', code === 0 ? 'meta' : 'err', targetTab.id);
+  } else {
+    termAppend('\n[exit ' + code + ']\n', code === 0 ? 'meta' : 'err');
+  }
+  if (currentTermId === id) currentTermId = null;
   if (id === 'preview') $('panelStatus').textContent = 'Preview stopped';
-  else if (!runningTerms.size) $('panelStatus').textContent = '';
+  else if (!runningTerms.size) {
+    $('panelStatus').textContent = '';
+    $('termIn').placeholder = 'Type a command, Enter to run, Ctrl+C to stop';
+  }
 });
-termAppend('Jeilo ARK terminal. Commands run in the project root.\n', 'meta');
+renderTermTabs();
 panelResizeEl.addEventListener('mousedown', (e) => {
   e.preventDefault();
   const startY = e.clientY;
@@ -1832,7 +2133,128 @@ function showDiffReview({ path: rel, before, after, title }) {
     $('diffReject').onclick = () => done(false);
   });
 }
+// ---------- Inline AI Generator (Ctrl+K) ----------
+let inlineAiBusy = false;
+let inlineAiSelection = null;
+
+function showInlineAi() {
+  if (!editor || !current) {
+    bubble('note', 'Open a file first to use Inline AI (Ctrl+K).');
+    return;
+  }
+  const bar = $('inlineAiBar');
+  if (!bar) return;
+
+  const sel = editor.getSelection();
+  inlineAiSelection = sel && !sel.isEmpty() ? sel : editor.getModel().getFullModelRange();
+  
+  bar.hidden = false;
+  $('inlineAiTitle').textContent = inlineAiSelection.isEmpty() ? 'Generate Code' : 'Edit Selected Code';
+  $('inlineAiInput').value = '';
+  $('inlineAiInput').focus();
+}
+
+function hideInlineAi() {
+  const bar = $('inlineAiBar');
+  if (bar) bar.hidden = true;
+  inlineAiBusy = false;
+  editor?.focus();
+}
+
+async function runInlineAi() {
+  if (inlineAiBusy) return;
+  const prompt = $('inlineAiInput')?.value.trim();
+  if (!prompt) return;
+  if (!editor || !current) return;
+  if (!$('model').value.trim()) {
+    bubble('err', 'Choose a model first at the top.');
+    return;
+  }
+  if (PROVIDERS[provider].cloud && !hasKey) {
+    bubble('err', `Add your ${PROVIDERS[provider].label} API key first.`);
+    $('keyBtn').click();
+    return;
+  }
+
+  const model = editor.getModel();
+  const range = inlineAiSelection || model.getFullModelRange();
+  const selectedCode = model.getValueInRange(range);
+  const fullCode = model.getValue();
+
+  inlineAiBusy = true;
+  $('inlineAiTitle').textContent = 'Generating edit with AI…';
+  $('inlineAiBtn').textContent = 'Thinking…';
+
+  try {
+    const inlineSystem = 'You are a high-performance inline code generation engine. You will be provided with the current file, the user prompt, and the code segment to modify. Output ONLY the raw replacement code for the selected block. Do NOT include markdown code fences (```), explanations, greetings, or commentary. Your entire reply will directly replace the selected text in the editor.';
+    const userPrompt = `File: ${current}\nInstruction: ${prompt}\n\nExisting code to replace:\n${selectedCode}\n\nFull file context for reference:\n${fullCode.slice(0, 15000)}`;
+
+    const inlineReqId = crypto.randomUUID();
+    const res = await api.chat({
+      id: inlineReqId,
+      baseUrl: curUrl(),
+      provider,
+      model: $('model').value.trim(),
+      messages: [
+        { role: 'system', content: inlineSystem },
+        { role: 'user', content: userPrompt }
+      ],
+      tools: []
+    });
+
+    const newBlock = stripFences(res.content || '');
+    if (!newBlock.trim()) {
+      bubble('warn', 'Inline AI did not return any code changes.');
+      hideInlineAi();
+      return;
+    }
+
+    const startOffset = model.getOffsetAt(range.getStartPosition());
+    const endOffset = model.getOffsetAt(range.getEndPosition());
+    const afterCode = fullCode.slice(0, startOffset) + newBlock + fullCode.slice(endOffset);
+
+    hideInlineAi();
+
+    const accepted = await showDiffReview({
+      path: current,
+      before: fullCode,
+      after: afterCode,
+      title: `Inline AI Edit (${prompt.slice(0, 35)}…)`
+    });
+
+    if (accepted) {
+      editor.executeEdits('inline-ai', [{
+        range: range,
+        text: newBlock,
+        forceMoveMarkers: true
+      }]);
+      editor.focus();
+      bubble('note', `Applied inline AI edit to ${current}: "${prompt}"`);
+    }
+  } catch (err) {
+    bubble('err', 'Inline AI failed: ' + err.message);
+  } finally {
+    inlineAiBusy = false;
+    $('inlineAiTitle').textContent = 'Generate or Edit Code';
+    $('inlineAiBtn').textContent = 'Generate';
+    hideInlineAi();
+  }
+}
+
+$('inlineAiCancel')?.addEventListener('click', hideInlineAi);
+$('inlineAiBtn')?.addEventListener('click', runInlineAi);
+$('inlineAiInput')?.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    runInlineAi();
+  } else if (e.key === 'Escape') {
+    e.preventDefault();
+    hideInlineAi();
+  }
+});
+
 function interrupt() {
+  if (!$('inlineAiBar')?.hidden) { hideInlineAi(); return; }
   if (!$('authGate').hidden) { hideAuthGate(); return; }
   if (!$('quick').hidden) { closeQuick(); return; }
   if (diffOpen) { diffDone?.(false); return; }
@@ -1950,21 +2372,182 @@ function buildMessages() {
   return messages;
 }
 
-// ---- saved conversations: one per project folder, restored when you reopen it ----
+// ---- multi-session persistent chat history drawer ----
+let chatFolderKey = null;
 let chatKey = null;
-const saveChat = () => { if (!chatKey) return; try { store.set(chatKey, JSON.stringify(history.slice(-300))); } catch { /* storage full */ } };
+let chatSessions = [];
+let currentSessionId = null;
+
+function getSessionStorageKey(folder) {
+  return 'chat_sessions:' + (folder || 'default');
+}
+
+function updateChatCountBadge() {
+  const countBadge = $('chatCount');
+  if (countBadge) countBadge.textContent = chatSessions.length || 1;
+}
+
+function saveCurrentSession() {
+  if (!chatFolderKey) return;
+  let sess = chatSessions.find(s => s.id === currentSessionId);
+  if (!sess) {
+    sess = {
+      id: currentSessionId || ('sess_' + Date.now()),
+      title: 'New chat',
+      updatedAt: Date.now(),
+      history: []
+    };
+    chatSessions.unshift(sess);
+    currentSessionId = sess.id;
+  }
+  sess.history = history.slice(-300);
+  sess.updatedAt = Date.now();
+  if (sess.title === 'New chat' || !sess.title) {
+    const firstUser = history.find(m => m.role === 'user');
+    if (firstUser && firstUser.content) {
+      const clean = firstUser.content.split('\n')[0].replace(/^\[Open file path[^\]]+\]/, '').trim();
+      sess.title = clean.slice(0, 40) + (clean.length > 40 ? '…' : '') || 'Chat';
+    }
+  }
+  try {
+    store.set(chatFolderKey, JSON.stringify(chatSessions));
+    if (chatKey) store.set(chatKey, JSON.stringify(history.slice(-300)));
+  } catch {}
+  updateChatCountBadge();
+}
+
+const saveChat = () => saveCurrentSession();
+
+function renderChatSessionsList() {
+  const listEl = $('chatSessionsList');
+  if (!listEl) return;
+  listEl.innerHTML = '';
+  if (!chatSessions.length) {
+    listEl.innerHTML = '<div style="font-size:11px;color:var(--dim);padding:8px">No previous sessions.</div>';
+    return;
+  }
+  chatSessions.forEach((sess) => {
+    const item = el('div', 'chat-session-item');
+    item.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:6px 8px;border-radius:4px;cursor:pointer;font-size:11.5px;background:' + (sess.id === currentSessionId ? 'var(--raise)' : 'transparent') + ';border:1px solid ' + (sess.id === currentSessionId ? 'var(--line)' : 'transparent');
+    const count = (sess.history || []).filter(m => m.role === 'user' || m.role === 'assistant').length;
+    const timeStr = sess.updatedAt ? new Date(sess.updatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
+    item.innerHTML = `
+      <div style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-right:8px">
+        <div style="font-weight:${sess.id === currentSessionId ? '600' : '400'};overflow:hidden;text-overflow:ellipsis">${esc(sess.title || 'Chat')}</div>
+        <div style="font-size:10px;color:var(--dim)">${timeStr ? timeStr + ' · ' : ''}${count} message${count !== 1 ? 's' : ''}</div>
+      </div>
+      <button class="ghost del-sess" title="Delete session" style="padding:1px 5px;font-size:11px;opacity:0.6">✕</button>
+    `;
+    item.onclick = (e) => {
+      if (e.target.classList.contains('del-sess')) {
+        e.stopPropagation();
+        deleteChatSession(sess.id);
+        return;
+      }
+      switchChatSession(sess.id);
+    };
+    listEl.appendChild(item);
+  });
+}
+
+function switchChatSession(id) {
+  if (id === currentSessionId) {
+    $('chatSessionsDrawer').hidden = true;
+    return;
+  }
+  saveCurrentSession();
+  const sess = chatSessions.find(s => s.id === id);
+  if (!sess) return;
+  currentSessionId = id;
+  history = Array.isArray(sess.history) ? [...sess.history] : [];
+  log.innerHTML = '';
+  welcome();
+  for (const m of history) {
+    if (m.role === 'user') bubble('user', m.content);
+    else if (m.role === 'assistant' && m.content) { const n = bubble('assistant', ''); n.innerHTML = md(m.content); }
+  }
+  $('chatSessionsDrawer').hidden = true;
+  updateChatCountBadge();
+}
+
+function newChatSession() {
+  saveCurrentSession();
+  const newId = 'sess_' + Date.now();
+  currentSessionId = newId;
+  history = [];
+  autoEdits = false;
+  $('ctxInfo').textContent = '';
+  $('ctxUse').textContent = '';
+  log.innerHTML = '';
+  welcome();
+  const newSess = { id: newId, title: 'New chat', updatedAt: Date.now(), history: [] };
+  chatSessions.unshift(newSess);
+  try { store.set(chatFolderKey, JSON.stringify(chatSessions)); } catch {}
+  updateChatCountBadge();
+  $('chatSessionsDrawer').hidden = true;
+}
+
+function deleteChatSession(id) {
+  chatSessions = chatSessions.filter(s => s.id !== id);
+  if (!chatSessions.length) {
+    newChatSession();
+    return;
+  }
+  if (currentSessionId === id) {
+    switchChatSession(chatSessions[0].id);
+  } else {
+    try { store.set(chatFolderKey, JSON.stringify(chatSessions)); } catch {}
+    updateChatCountBadge();
+    renderChatSessionsList();
+  }
+}
+
 function loadChat(folder) {
-  saveChat(); chatKey = 'chat:' + folder; autoEdits = false; $('ctxInfo').textContent = ''; $('ctxUse').textContent = '';
-  let saved = []; try { saved = JSON.parse(store.get(chatKey, '[]')); } catch { saved = []; }
-  history = Array.isArray(saved) ? saved : []; log.innerHTML = ''; welcome();
+  saveCurrentSession();
+  chatFolderKey = getSessionStorageKey(folder);
+  chatKey = 'chat:' + folder;
+  autoEdits = false;
+  $('ctxInfo').textContent = '';
+  $('ctxUse').textContent = '';
+
+  let sessions = [];
+  try { sessions = JSON.parse(store.get(chatFolderKey, '[]')); } catch { sessions = []; }
+  if (!Array.isArray(sessions) || !sessions.length) {
+    let legacy = [];
+    try { legacy = JSON.parse(store.get(chatKey, '[]')); } catch { legacy = []; }
+    if (Array.isArray(legacy) && legacy.length) {
+      sessions = [{ id: 'sess_' + Date.now(), title: 'Restored chat', updatedAt: Date.now(), history: legacy }];
+    } else {
+      sessions = [{ id: 'sess_' + Date.now(), title: 'New chat', updatedAt: Date.now(), history: [] }];
+    }
+  }
+  chatSessions = sessions;
+  currentSessionId = chatSessions[0].id;
+  history = Array.isArray(chatSessions[0].history) ? [...chatSessions[0].history] : [];
+  log.innerHTML = '';
+  welcome();
   if (history.length) {
     for (const m of history) {
       if (m.role === 'user') bubble('user', m.content);
       else if (m.role === 'assistant' && m.content) { const n = bubble('assistant', ''); n.innerHTML = md(m.content); }
     }
-    bubble('note', 'Restored your earlier conversation for this folder. Click New chat to start over.');
+    bubble('note', 'Restored conversation. Use History to switch sessions or + New Chat.');
   }
+  updateChatCountBadge();
 }
+
+$('chatSessionsBtn')?.addEventListener('click', () => {
+  const drawer = $('chatSessionsDrawer');
+  if (!drawer) return;
+  drawer.hidden = !drawer.hidden;
+  if (!drawer.hidden) renderChatSessionsList();
+});
+$('chatDrawerClose')?.addEventListener('click', () => {
+  $('chatSessionsDrawer').hidden = true;
+});
+$('chatNewSessionBtn')?.addEventListener('click', () => {
+  newChatSession();
+});
 
 let busy = false, reqId = null, live = null, raf = 0;
 api.onChunk(({ id, text, reasoning }) => {
@@ -2173,7 +2756,7 @@ async function send() {
   finally { userMsg.content = text; live = null; setBusy(false); saveChat(); }
 }
 $('send').onclick = send;
-$('clear').onclick = () => { if (!busy) { history = []; if (chatKey) localStorage.removeItem(chatKey); $('ctxUse').textContent = ''; autoEdits = false; $('ctxInfo').textContent = ''; log.innerHTML = ''; welcome(); } };
+$('clear').onclick = () => { if (!busy) { newChatSession(); } };
 $('prompt').addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } });
 $('authGithub').onclick = startGithubAuth;
 $('authGoogle').onclick = startGoogleAuth;
@@ -2198,6 +2781,7 @@ addEventListener('keydown', (e) => {
   if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 'p') { e.preventDefault(); if (editor) { editor.focus(); editor.trigger('keyboard', 'editor.action.quickCommand'); } return; }
   if (e.ctrlKey && !e.shiftKey && e.key.toLowerCase() === 'g') { e.preventDefault(); goToLine(); return; }
   if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 'f') { e.preventDefault(); focusSearch(); return; }
+  if (e.ctrlKey && !e.shiftKey && e.key.toLowerCase() === 'k') { e.preventDefault(); showInlineAi(); return; }
   if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 'a') { e.preventDefault(); addSelectionToChat(); return; }
   if (e.ctrlKey && e.key === '`') { e.preventDefault(); togglePanel('term'); return; }
   if (e.ctrlKey && e.key === 's') { e.preventDefault(); save(); }

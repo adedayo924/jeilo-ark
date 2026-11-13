@@ -11,6 +11,8 @@ contextBridge.exposeInMainWorld('api', {
   renamePath: call('rename-path'),
   runCommand: call('run-command'),
   termRun: call('term-run'),
+  termInput: call('term-input'),
+  termEndInput: call('term-end-input'),
   termKill: call('term-kill'),
   listFiles: call('list-files'),
   searchFiles: call('search-files'),

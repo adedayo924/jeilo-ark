@@ -93,6 +93,10 @@ switch (cmd) {
         files.push(a);
       }
     }
+    if (files.length === 0 && args.length === 0) {
+      process.stderr.write('head: missing file operand. Try "head -n 10 <file>" or pipe into it.\n');
+      process.exit(1);
+    }
 
     readInput(files, (err, inputs) => {
       if (err) return;
@@ -117,6 +121,10 @@ switch (cmd) {
       } else if (!a.startsWith('-')) {
         files.push(a);
       }
+    }
+    if (files.length === 0 && args.length === 0) {
+      process.stderr.write('tail: missing file operand. Try "tail -n 10 <file>" or pipe into it.\n');
+      process.exit(1);
     }
 
     readInput(files, (err, inputs) => {

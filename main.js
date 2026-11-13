@@ -145,15 +145,21 @@ ipcMain.handle('rename-path', async (_e, { oldPath, newPath }) => {
 
 // ---- streaming terminal: one place for user commands, agent commands, preview servers, MCP logs ----
 const shimsDir = path.join(__dirname, 'shims');
-if (process.platform === 'win32') {
-  process.env.PATH = shimsDir + path.delimiter + (process.env.PATH || '');
-}
 function getChildEnv(extra = {}) {
   const env = { ...process.env, ...extra };
   if (process.platform === 'win32') {
-    env.PATH = shimsDir + path.delimiter + (env.PATH || '');
+    const sysRoot = process.env.SystemRoot || process.env.SYSTEMROOT || 'C:\\Windows';
+    const sys32 = path.join(sysRoot, 'System32');
+    const psDir = path.join(sys32, 'WindowsPowerShell', 'v1.0');
+    const curPath = env.PATH || env.Path || '';
+    const cleanPath = [shimsDir, psDir, sys32, curPath].filter(Boolean).join(path.delimiter);
+    env.PATH = cleanPath;
+    env.Path = cleanPath;
   }
   return env;
+}
+if (process.platform === 'win32') {
+  process.env = getChildEnv();
 }
 
 let termSeq = 0;
@@ -174,11 +180,25 @@ function killProc(child) {
   }
 }
 
-function startRun(cmd, { source = 'user', cwd, timeout = 0 } = {}) {
+function startRun(cmd, { source = 'user', cwd, timeout = 0, shell } = {}) {
   const id = 't' + (++termSeq);
   const workdir = cwd || root;
   sendAll('term-start', { id, command: cmd, source, cwd: workdir });
-  const child = spawn(cmd, { cwd: workdir, shell: true, windowsHide: true, env: getChildEnv() });
+  const env = getChildEnv();
+  let child;
+  if (process.platform === 'win32' && shell === 'powershell') {
+    const sysRoot = process.env.SystemRoot || 'C:\\Windows';
+    const psPath = path.join(sysRoot, 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe');
+    const exe = fsSync.existsSync(psPath) ? psPath : 'powershell.exe';
+    child = spawn(exe, ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', cmd], { cwd: workdir, windowsHide: true, env });
+  } else if (process.platform === 'win32' && shell === 'cmd') {
+    const sysRoot = process.env.SystemRoot || 'C:\\Windows';
+    const cmdPath = process.env.ComSpec || path.join(sysRoot, 'System32', 'cmd.exe');
+    const exe = fsSync.existsSync(cmdPath) ? cmdPath : 'cmd.exe';
+    child = spawn(exe, ['/d', '/s', '/c', cmd], { cwd: workdir, windowsHide: true, env });
+  } else {
+    child = spawn(cmd, { cwd: workdir, shell: true, windowsHide: true, env });
+  }
   termProcs.set(id, child);
   let out = '', finished = false, timer = null, resolve;
   const promise = new Promise((r) => { resolve = r; });
@@ -212,9 +232,25 @@ ipcMain.handle('run-command', async (_e, cmd) => {
   const cwd = await safe('.');
   return startRun(String(cmd), { source: 'agent', cwd, timeout: 300000 }).promise;
 });
-ipcMain.handle('term-run', async (_e, cmd) => {
+ipcMain.handle('term-run', async (_e, cmd, opts = {}) => {
   const cwd = await safe('.');
-  return { id: startRun(String(cmd), { source: 'user', cwd, timeout: 0 }).id };
+  return { id: startRun(String(cmd), { source: 'user', cwd, timeout: 0, shell: opts && opts.shell }).id };
+});
+ipcMain.handle('term-input', (_e, { id, data } = {}) => {
+  const child = id ? termProcs.get(id) : [...termProcs.values()].pop();
+  if (child && child.stdin && !child.stdin.destroyed && child.stdin.writable) {
+    child.stdin.write(String(data || ''));
+    return true;
+  }
+  return false;
+});
+ipcMain.handle('term-end-input', (_e, id) => {
+  const child = id ? termProcs.get(id) : [...termProcs.values()].pop();
+  if (child && child.stdin && !child.stdin.destroyed) {
+    child.stdin.end();
+    return true;
+  }
+  return false;
 });
 ipcMain.handle('term-kill', (_e, id) => {
   if (id) { killProc(termProcs.get(id)); }

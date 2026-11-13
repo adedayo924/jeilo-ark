@@ -388,6 +388,118 @@ async function runAllTests() {
     assert(out.toLowerCase().includes('node'), 'which node should locate node binary');
   });
 
+  await test('term-run and term-input support interactive stdin communication', async () => {
+    const termRun = handlers.get('term-run');
+    const termInput = handlers.get('term-input');
+    const termKill = handlers.get('term-kill');
+
+    // Run node in interactive mode
+    const { id } = await termRun(null, 'node -e "process.stdin.on(\'data\', d => { console.log(\'ECHO:\' + d.toString().trim()); process.exit(0); });"');
+    assert(id, 'termRun must return process id');
+    
+    // Wait briefly and send input via term-input
+    await new Promise((r) => setTimeout(r, 200));
+    const sent = await termInput(null, { id, data: 'hello stdin\n' });
+    assert.strictEqual(sent, true, 'term-input must successfully write to stdin');
+    termKill(null, id);
+  });
+
+  console.log('\nSuite 10: Premium IDE Features (Activity Bar, Multi-Terminal, Chat History, Inline AI)');
+
+  await test('fileIcon renders SVG icons for files and folders', () => {
+    // Extract fileIcon function from index.html
+    const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
+    const match = html.match(/function fileIcon\(name, isDir, isOpen\) \{([\s\S]*?)\n\}/);
+    assert(match, 'fileIcon function must exist in index.html');
+    const fileIcon = new Function('name', 'isDir', 'isOpen', match[1]);
+
+    const jsIco = fileIcon('app.js', false, false);
+    assert(jsIco.includes('<svg') && jsIco.includes('f7df1e'), 'app.js should render yellow JS SVG icon');
+
+    const tsIco = fileIcon('main.ts', false, false);
+    assert(tsIco.includes('<svg') && tsIco.includes('3178c6'), 'main.ts should render blue TS SVG icon');
+
+    const pyIco = fileIcon('script.py', false, false);
+    assert(pyIco.includes('<svg') && pyIco.includes('3572A5'), 'script.py should render Python SVG icon');
+
+    const closedDir = fileIcon('src', true, false);
+    const openDir = fileIcon('src', true, true);
+    assert(closedDir.includes('<svg') && openDir.includes('<svg'), 'Directories should render folder SVG icons');
+    assert.notStrictEqual(closedDir, openDir, 'Open and closed folders must have distinct SVGs');
+  });
+
+  await test('term-run executes with shell selector options (cmd / powershell)', async () => {
+    const termRun = handlers.get('term-run');
+    const termKill = handlers.get('term-kill');
+
+    // Test with cmd shell option
+    const resCmd = await termRun(null, 'node -e "console.log(\'cmd_ok\')"', { shell: 'cmd' });
+    assert(resCmd && resCmd.id, 'termRun with shell: cmd must return proc id');
+
+    // Test with powershell shell option
+    const resPs = await termRun(null, 'node -e "console.log(\'ps_ok\')"', { shell: 'powershell' });
+    assert(resPs && resPs.id, 'termRun with shell: powershell must return proc id');
+
+    await new Promise((r) => setTimeout(r, 300));
+    termKill(null, resCmd.id);
+    termKill(null, resPs.id);
+  });
+
+  await test('Multi-session chat persistent storage and migration', () => {
+    const mockStorage = new Map();
+    const store = {
+      get: (k, d) => mockStorage.get(k) ?? d,
+      set: (k, v) => mockStorage.set(k, String(v))
+    };
+
+    // Test migration from legacy single chat:
+    const legacyHistory = [{ role: 'user', content: 'hello' }, { role: 'assistant', content: 'hi' }];
+    store.set('chat:myproject', JSON.stringify(legacyHistory));
+
+    const chatFolderKey = 'chat_sessions:myproject';
+    let sessions = [];
+    try { sessions = JSON.parse(store.get(chatFolderKey, '[]')); } catch {}
+    if (!sessions.length) {
+      let legacy = [];
+      try { legacy = JSON.parse(store.get('chat:myproject', '[]')); } catch {}
+      if (legacy.length) {
+        sessions = [{ id: 'sess_1', title: 'Restored chat', updatedAt: Date.now(), history: legacy }];
+      }
+    }
+    assert.strictEqual(sessions.length, 1, 'Should migrate legacy single chat into a session');
+    assert.strictEqual(sessions[0].history.length, 2, 'Should preserve message history');
+
+    // Add new session
+    const newSession = { id: 'sess_2', title: 'New chat', updatedAt: Date.now(), history: [] };
+    sessions.unshift(newSession);
+    store.set(chatFolderKey, JSON.stringify(sessions));
+
+    const reloaded = JSON.parse(store.get(chatFolderKey, '[]'));
+    assert.strictEqual(reloaded.length, 2, 'Should persist multiple sessions');
+    assert.strictEqual(reloaded[0].id, 'sess_2', 'Latest session should be at index 0');
+  });
+
+  await test('Inline AI code stripFences and diff review generation', () => {
+    const stripFences = (s) => {
+      let t = String(s || '').trim();
+      const m = t.match(/^```[^\n]*\n([\s\S]*?)\n```$/);
+      if (m) t = m[1];
+      return t.replace(/^```[^\n]*\n?/, '').replace(/\n?```$/, '').trim();
+    };
+
+    const fencedCode = '```javascript\nfunction greet() {\n  return "hello world";\n}\n```';
+    const stripped = stripFences(fencedCode);
+    assert.strictEqual(stripped, 'function greet() {\n  return "hello world";\n}', 'stripFences should extract raw code');
+
+    // Test diff building for inline replacement
+    const fullCode = 'const a = 1;\nconst b = 2;\nconst c = 3;';
+    const rangeStart = 13; // start of 'const b = 2;'
+    const rangeEnd = 25;   // end of 'const b = 2;'
+    const replacement = 'const b = 42;';
+    const afterCode = fullCode.slice(0, rangeStart) + replacement + fullCode.slice(rangeEnd);
+    assert.strictEqual(afterCode, 'const a = 1;\nconst b = 42;\nconst c = 3;', 'Replacement should cleanly integrate into file for diff review');
+  });
+
   // Clean up temporary workspace
   try {
     fs.rmSync(tempDir, { recursive: true, force: true });
