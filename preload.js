@@ -51,6 +51,7 @@ contextBridge.exposeInMainWorld('api', {
   extRunCommand: call('ext-run-command'),
   extInstallFile: call('ext-install-file'),
   codebaseSearch: call('codebase-search'),
+  listProjectTasks: call('list-project-tasks'),
   previewStart: call('preview-start'),
   previewStop: call('preview-stop'),
   openExternal: call('open-external'),

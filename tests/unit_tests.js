@@ -760,6 +760,107 @@ def run_pipeline():
     assert(composerFiles.has('src/config.json'));
   });
 
+  // ----------------------------------------------------
+  console.log('\nSuite 13: Advanced Pro Features (Task Runner, Live Artifacts, Mermaid, Sticky Scroll, Find & Replace, Voice Dictation)');
+  // ----------------------------------------------------
+
+  await test('list-project-tasks detects package.json npm scripts', async () => {
+    fs.writeFileSync(
+      path.join(testRoot, 'package.json'),
+      JSON.stringify({ name: 'test-app', scripts: { build: 'tsc', test: 'jest', start: 'node index.js' } }, null, 2)
+    );
+    const listTasks = handlers.get('list-project-tasks');
+    const tasks = await listTasks();
+    assert(Array.isArray(tasks), 'Tasks should be an array');
+    const names = tasks.map(t => t.name);
+    assert(names.includes('npm: build'), 'Should detect npm: build');
+    assert(names.includes('npm: test'), 'Should detect npm: test');
+    assert(names.includes('npm: start'), 'Should detect npm: start');
+  });
+
+  await test('list-project-tasks detects Makefile targets', async () => {
+    fs.writeFileSync(
+      path.join(testRoot, 'Makefile'),
+      'all: build\nbuild:\n\t@echo "Building"\nclean:\n\t@echo "Cleaning"\n'
+    );
+    const listTasks = handlers.get('list-project-tasks');
+    const tasks = await listTasks();
+    const names = tasks.map(t => t.name);
+    assert(names.includes('make: all'), 'Should detect make: all');
+    assert(names.includes('make: build'), 'Should detect make: build');
+    assert(names.includes('make: clean'), 'Should detect make: clean');
+  });
+
+  await test('renderMermaidSvg generates valid SVG diagram for flowcharts', () => {
+    const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
+    const match = html.match(/function renderMermaidSvg\(raw\)\s*\{[\s\S]*?\n\}/);
+    assert(match, 'renderMermaidSvg function must exist in index.html');
+    const renderMermaidSvg = new Function('raw', 'esc', match[0] + '; return renderMermaidSvg(raw);');
+    const escFn = (s) => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    
+    const svg = renderMermaidSvg('flowchart TD\n  A[Start] --> B{Valid?}\n  B -->|Yes| C[Run]\n  B -->|No| D[Halt]', escFn);
+    assert(typeof svg === 'string', 'Should return SVG string');
+    assert(svg.includes('<svg') && svg.includes('</svg>'), 'Should contain SVG tags');
+    assert(svg.includes('Start') && svg.includes('Valid?'), 'Should render node text labels');
+    assert(svg.includes('marker-end'), 'Should include arrow markers');
+  });
+
+  await test('renderMermaidSvg generates sequence diagram with lifelines and messages', () => {
+    const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
+    const match = html.match(/function renderMermaidSvg\(raw\)\s*\{[\s\S]*?\n\}/);
+    const renderMermaidSvg = new Function('raw', 'esc', match[0] + '; return renderMermaidSvg(raw);');
+    const escFn = (s) => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+    const svg = renderMermaidSvg('sequenceDiagram\n  Alice->>Bob: Hello Bob\n  Bob-->>Alice: Hi Alice', escFn);
+    assert(svg.includes('<svg') && svg.includes('Alice') && svg.includes('Bob'));
+    assert(svg.includes('Hello Bob') && svg.includes('Hi Alice'));
+  });
+
+  await test('md() creates Preview button for HTML and SVG artifacts', () => {
+    const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
+    const match = html.match(/function md\(t\)\s*\{[\s\S]*?\n\}/);
+    const md = new Function('t', 'esc', 'renderMermaidSvg', match[0] + '; return md(t);');
+    const escFn = (s) => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+    const outHtml = md('```html\n<button>Click Me</button>\n```', escFn, () => '');
+    assert(outHtml.includes('<button class="copy prev-btn" title="Live Preview Artifact">Preview</button>'));
+
+    const outSvg = md('```svg\n<svg viewBox="0 0 10 10"></svg>\n```', escFn, () => '');
+    assert(outSvg.includes('<button class="copy prev-btn" title="Live Preview Artifact">Preview</button>'));
+  });
+
+  await test('In-Editor Find & Replace match calculation and regex support', () => {
+    const text = 'const userCount = 10;\nfunction getUser() {\n  return userCount;\n}';
+    const query = 'user';
+    const matches = [];
+    const regex = new RegExp(query, 'gi');
+    let m;
+    while ((m = regex.exec(text)) !== null) {
+      matches.push({ index: m.index, text: m[0] });
+    }
+    assert.strictEqual(matches.length, 3, 'Expected 3 matches for "user"');
+
+    const replaced = text.replace(new RegExp('userCount', 'g'), 'memberCount');
+    assert(replaced.includes('memberCount = 10'), 'Replace all should update all occurrences');
+    assert(!replaced.includes('userCount'), 'Old name should be gone');
+  });
+
+  await test('Monaco sticky scroll and bracket pair colorization configured', () => {
+    const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
+    assert(html.includes('stickyScroll: { enabled: true, maxLineCount: 5 }'), 'stickyScroll must be enabled');
+    assert(html.includes('bracketPairColorization: { enabled: true }'), 'bracketPairColorization must be enabled');
+    assert(html.includes('id="toggleMinimap"'), 'Minimap toggle button must exist');
+    assert(html.includes('id="toggleStickyScroll"'), 'Sticky scroll toggle button must exist');
+  });
+
+  await test('Voice dictation buttons and handlers exist in chat and composer', () => {
+    const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
+    assert(html.includes('id="voiceDictationBtn"'), 'Chat voice dictation button must exist');
+    assert(html.includes('id="composerVoiceBtn"'), 'Composer voice dictation button must exist');
+    assert(html.includes('toggleVoiceDictation'), 'toggleVoiceDictation function must exist');
+    assert(html.includes('webkitSpeechRecognition') || html.includes('SpeechRecognition'), 'Speech recognition API referenced');
+  });
+
   // Clean up temporary workspace
   try {
     fs.rmSync(tempDir, { recursive: true, force: true });

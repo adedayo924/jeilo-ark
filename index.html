@@ -2064,6 +2064,156 @@
       border-top: 1px solid var(--line);
       background: var(--panel);
     }
+
+    /* Project Tasks Runner */
+    #tasksBox {
+      border-top: 1px solid var(--line);
+      padding: 6px 8px;
+      max-height: 180px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    #tasksHead {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 2px 0;
+    }
+    #tasksList {
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+    }
+    .taskItem {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 4px 6px;
+      border-radius: 4px;
+      font-size: 11px;
+      background: var(--bg);
+      border: 1px solid var(--line);
+    }
+    .taskItem:hover {
+      background: var(--raise);
+    }
+    .taskName {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-family: var(--mono);
+      font-size: 11px;
+    }
+    .taskRunBtn {
+      padding: 1px 7px;
+      font-size: 10px;
+      border-radius: 3px;
+      flex-shrink: 0;
+      margin-left: 6px;
+    }
+
+    /* In-Editor Find & Replace Bar */
+    #findBar {
+      position: absolute;
+      top: 10px;
+      right: 25px;
+      z-index: 50;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
+      padding: 6px 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      min-width: 380px;
+    }
+    #findRow1, #findRow2 {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+    #findInput, #replaceInput {
+      flex: 1;
+      font: 12px var(--mono);
+      padding: 4px 8px;
+      background: var(--bg);
+    }
+    #findCount {
+      font-size: 11px;
+      color: var(--dim);
+      white-space: nowrap;
+      min-width: 55px;
+      text-align: center;
+    }
+    .findToggleBtn {
+      padding: 3px 6px;
+      font-size: 11px;
+      background: transparent;
+      color: var(--dim);
+      border: 1px solid transparent;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    .findToggleBtn.on {
+      background: var(--raise);
+      color: var(--accent);
+      border-color: var(--accent);
+    }
+    .findIconBtn {
+      padding: 3px 6px;
+      font-size: 12px;
+      background: transparent;
+      color: var(--dim);
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    .findIconBtn:hover {
+      background: var(--raise);
+      color: var(--text);
+    }
+    .findActionBtn {
+      padding: 3px 8px;
+      font-size: 11px;
+    }
+
+    /* Voice Dictation Pulsing Mic */
+    .listening {
+      animation: micPulse 1.2s infinite alternate ease-in-out;
+      background: var(--accent) !important;
+      color: var(--accent-text) !important;
+    }
+    @keyframes micPulse {
+      0% { box-shadow: 0 0 2px var(--accent); }
+      100% { box-shadow: 0 0 14px var(--accent); }
+    }
+
+    /* Mermaid & Artifact Previews */
+    .mermaid-wrap {
+      overflow-x: auto;
+      padding: 10px;
+      background: var(--bg);
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      margin: 6px 0;
+      display: flex;
+      justify-content: center;
+    }
+    .mermaid-wrap svg {
+      max-width: 100%;
+      height: auto;
+    }
+    .artifact-preview-frame {
+      width: 100%;
+      height: 240px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: #ffffff;
+      margin-top: 6px;
+    }
   </style>
 </head>
 
@@ -2147,6 +2297,13 @@
             </div>
             <div id="outlineList"></div>
           </div>
+          <div id="tasksBox">
+            <div id="tasksHead">
+              <span style="font-size:10px;font-weight:600;color:var(--dim);letter-spacing:0.5px">PROJECT TASKS</span>
+              <button class="ghost" id="tasksRefreshBtn" title="Refresh project tasks" style="padding:1px 5px;font-size:10px">↻</button>
+            </div>
+            <div id="tasksList"></div>
+          </div>
           <div id="searchResults" hidden></div>
           <div id="gitPanel" hidden></div>
           <div id="extPanel" hidden>
@@ -2209,6 +2366,25 @@
               <button id="inlineAiCancel" class="ghost" title="Cancel (Esc)">✕</button>
             </div>
             <div id="inlineAiStatus" hidden><span class="spin"></span> <span id="inlineAiTitle">Thinking…</span></div>
+          </div>
+          <div id="findBar" hidden>
+            <div id="findRow1">
+              <button id="findToggleReplaceBtn" class="findIconBtn" title="Toggle Replace (Ctrl+H)">▸</button>
+              <input id="findInput" placeholder="Find" autocomplete="off" spellcheck="false">
+              <span id="findCount">0 results</span>
+              <button id="findCaseBtn" class="findToggleBtn" title="Match Case (Alt+C)">Aa</button>
+              <button id="findWordBtn" class="findToggleBtn" title="Match Whole Word (Alt+W)">|ab|</button>
+              <button id="findRegexBtn" class="findToggleBtn" title="Use Regular Expression (Alt+R)">.*</button>
+              <button id="findPrevBtn" class="findIconBtn" title="Previous Match (Shift+Enter)">↑</button>
+              <button id="findNextBtn" class="findIconBtn" title="Next Match (Enter)">↓</button>
+              <button id="findCloseBtn" class="findIconBtn" title="Close (Escape)">✕</button>
+            </div>
+            <div id="findRow2" hidden>
+              <span style="width:20px"></span>
+              <input id="replaceInput" placeholder="Replace" autocomplete="off" spellcheck="false">
+              <button id="replaceBtn" class="findActionBtn" title="Replace (Enter in replace field)">Replace</button>
+              <button id="replaceAllBtn" class="findActionBtn" title="Replace All (Ctrl+Alt+Enter)">Replace All</button>
+            </div>
           </div>
           <div id="empty">
             <div>
@@ -2289,7 +2465,7 @@
         </div>
         <div id="log"></div>
         <div id="status" hidden><span class="spin"></span><span id="statusText"></span></div>
-        <div id="inputRow"><textarea id="prompt"
+        <div id="inputRow"><button class="ghost" id="voiceDictationBtn" title="Voice Dictation (Ctrl+M)">🎙</button><textarea id="prompt"
             placeholder="Ask about your code (Enter to send, Shift+Enter for a new line)"></textarea><button
             id="send">Send</button></div>
       </aside>
@@ -2300,6 +2476,8 @@
       <button class="ghost" id="termBtn" title="Toggle terminal (Ctrl+`)">Terminal</button>
       <button class="ghost" id="previewBtn" title="Toggle preview panel">Preview</button>
       <button class="ghost" id="autoBtn" title="Toggle AI inline completion (Tab accepts)">AI tab</button>
+      <button class="ghost" id="toggleMinimap" title="Toggle Editor Minimap">Minimap: Off</button>
+      <button class="ghost" id="toggleStickyScroll" title="Toggle Sticky Scroll">Sticky: On</button>
       <span class="sp"></span>
       <span id="mcpInfo" title="MCP tools"></span>
       <span id="ctxUse"></span><span id="ctxInfo"></span>
@@ -2455,8 +2633,9 @@
         fontLigatures: true,
         bracketPairColorization: { enabled: true },
         guides: { bracketPairs: true },
+        stickyScroll: { enabled: true, maxLineCount: 5 },
         wordWrap: 'on',
-        minimap: { enabled: false },
+        minimap: { enabled: store.get('minimap', '0') === '1' },
         smoothScrolling: true,
         padding: { top: 10 },
         inlineSuggest: { enabled: true },
@@ -2470,6 +2649,8 @@
       editor.addAction({ id: 'jeilo.inlineAi', label: 'Inline AI Edit (Ctrl+K)', keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyK], run: () => showInlineAi() });
       editor.addAction({ id: 'jeilo.composer', label: 'Open AI Composer (Ctrl+I)', keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyI], run: () => openComposer() });
       editor.addAction({ id: 'jeilo.splitEditor', label: 'Split Editor Side-by-Side (Ctrl+\\)', keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyCode.Backslash], run: () => toggleSplitEditor() });
+      editor.addAction({ id: 'jeilo.find', label: 'Find in File (Ctrl+F)', keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyF], run: () => openFindBar(false) });
+      editor.addAction({ id: 'jeilo.replace', label: 'Replace in File (Ctrl+H)', keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyH], run: () => openFindBar(true) });
       editor.addAction({ id: 'jeilo.quickOpen', label: 'Quick open file', keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyP], run: () => openQuick() });
       editor.addAction({ id: 'jeilo.searchFiles', label: 'Search in files', keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyMod.Shift | monaco.KeyCode.KeyF], run: () => focusSearch() });
       editor.addAction({ id: 'jeilo.terminal', label: 'Toggle terminal', keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyCode.Backquote], run: () => togglePanel('term') });
@@ -2486,56 +2667,56 @@
     const dotColor = (n) => DOT[n.split('.').pop().toLowerCase()] || '#4a5b7c';
 
     // ---------- SVG Icons & Activity Bar ----------
-    function fileIcon(name, isDir, isOpen) {
-      if (isDir) {
-        return `<span class="file-ico">${isOpen ?
-          '<svg viewBox="0 0 16 16"><path d="M1.5 3A1.5 1.5 0 0 1 3 1.5h3.88a1.5 1.5 0 0 1 1.06.44l1.12 1.12A1.5 1.5 0 0 0 10.12 3.5H13A1.5 1.5 0 0 1 14.5 5v1H3.5a1.5 1.5 0 0 0-1.42 1.002L1.5 8.5V3z" fill="#dcb67a"/><path d="M2.085 7.002A1.5 1.5 0 0 1 3.5 6h11a1.5 1.5 0 0 1 1.415 1.998l-1.5 4.5A1.5 1.5 0 0 1 13 13.5H2a1.5 1.5 0 0 1-1.415-1.998l1.5-4.5z" fill="#e5c890"/></svg>' :
-          '<svg viewBox="0 0 16 16"><path d="M1.5 3A1.5 1.5 0 0 1 3 1.5h3.88a1.5 1.5 0 0 1 1.06.44l1.12 1.12A1.5 1.5 0 0 0 10.12 3.5H13A1.5 1.5 0 0 1 14.5 5v7.5A1.5 1.5 0 0 1 13 14H3a1.5 1.5 0 0 1-1.5-1.5V3z" fill="#dcb67a"/></svg>'
-          }</span>`;
-      }
-      const ext = String(name || '').split('.').pop().toLowerCase();
-      const base = String(name || '').toLowerCase();
-      if (base === '.gitignore' || base === '.gitmodules') {
-        return '<span class="file-ico"><svg viewBox="0 0 16 16"><circle cx="12" cy="4" r="2" fill="#f05032"/><circle cx="4" cy="12" r="2" fill="#f05032"/><circle cx="4" cy="4" r="2" fill="#f05032"/><path d="M4 6v4m8-4v1a3 3 0 0 1-3 3H6" stroke="#f05032" stroke-width="1.2" fill="none"/></svg></span>';
-      }
-      if (ext === 'js' || ext === 'mjs' || ext === 'cjs') {
-        return '<span class="file-ico"><svg viewBox="0 0 16 16"><rect width="14" height="14" x="1" y="1" rx="2" fill="#f7df1e"/><path d="M7 11.5c0 .8-.5 1.2-1.3 1.2-.7 0-1.2-.4-1.3-.9l.8-.5c.1.3.3.5.5.5.3 0 .4-.2.4-.5V6h1v5.5zm4.7-.2c0 .8-.6 1.4-1.5 1.4-.9 0-1.5-.5-1.6-1.2l.9-.4c.1.4.4.7.7.7.3 0 .5-.2.5-.5 0-.4-.3-.6-.8-.8l-.3-.1c-.7-.3-1.1-.7-1.1-1.3 0-.8.6-1.3 1.4-1.3.8 0 1.3.5 1.4 1.1l-.8.4c-.1-.3-.3-.6-.6-.6-.3 0-.5.2-.5.4 0 .3.2.5.7.7l.3.1c.8.3 1.3.7 1.3 1.5z" fill="#000"/></svg></span>';
-      }
-      if (ext === 'ts') {
-        return '<span class="file-ico"><svg viewBox="0 0 16 16"><rect width="14" height="14" x="1" y="1" rx="2" fill="#3178c6"/><path d="M3.5 6.5h3.4V5H2v1.5h1.5v6.2h1.5V6.5zm7.3 2.8c0-.9-.7-1.4-1.6-1.8l-.4-.2c-.4-.2-.6-.3-.6-.6 0-.3.2-.5.6-.5.4 0 .6.2.7.5l1.2-.6c-.3-.7-.9-1.1-1.9-1.1-1.1 0-1.9.6-1.9 1.7 0 .8.6 1.3 1.5 1.7l.4.2c.5.2.7.4.7.7 0 .3-.3.5-.7.5-.5 0-.8-.3-.9-.7l-1.3.5c.3 1 1.1 1.4 2.2 1.4 1.2 0 2-.7 2-1.7z" fill="#fff"/></svg></span>';
-      }
-      if (ext === 'jsx' || ext === 'tsx') {
-        return '<span class="file-ico"><svg viewBox="0 0 16 16"><ellipse cx="8" cy="8" rx="6.5" ry="2.6" stroke="#61dafb" stroke-width="1.1" fill="none" transform="rotate(30 8 8)"/><ellipse cx="8" cy="8" rx="6.5" ry="2.6" stroke="#61dafb" stroke-width="1.1" fill="none" transform="rotate(90 8 8)"/><ellipse cx="8" cy="8" rx="6.5" ry="2.6" stroke="#61dafb" stroke-width="1.1" fill="none" transform="rotate(150 8 8)"/><circle cx="8" cy="8" r="1.3" fill="#61dafb"/></svg></span>';
-      }
-      if (ext === 'json') {
-        return '<span class="file-ico"><svg viewBox="0 0 16 16"><path d="M5.5 2C4.12 2 3 3.12 3 4.5v1.25c0 .69-.56 1.25-1.25 1.25H1v2h.75C2.44 9 3 9.56 3 10.25V11.5C3 12.88 4.12 14 5.5 14H7v-1.5H5.5c-.28 0-.5-.22-.5-.5v-1.5c0-1.1-.9-2-2-2v-1c1.1 0 2-.9 2-2V4c0-.28.22-.5.5-.5H7V2H5.5zm5 0C11.88 2 13 3.12 13 4.5v1.25c0 .69.56 1.25 1.25 1.25H15v2h-.75c-.69 0-1.25.56-1.25 1.25V11.5c0 1.38-1.12 2.5-2.5 2.5H9v-1.5h1.5c.28 0 .5-.22.5-.5v-1.5c0-1.1.9-2 2-2v-1c-1.1 0-2-.9-2-2V4c0-.28-.22-.5-.5-.5H9V2h1.5z" fill="#cbcb41"/></svg></span>';
-      }
-      if (ext === 'html' || ext === 'htm') {
-        return '<span class="file-ico"><svg viewBox="0 0 16 16"><path d="M2.5 1.5l1.1 12.3 4.4 1.2 4.4-1.2L13.5 1.5H2.5zm8.9 4H5.9l.1 1.5h5.3l-.3 3.6-2.9.8-2.9-.8-.2-2.1h1.5l.1 1 1.5.4 1.5-.4.1-1.6H4.2l-.4-4.5h7.8l-.2 1.6z" fill="#e34f26"/></svg></span>';
-      }
-      if (ext === 'css' || ext === 'scss') {
-        return '<span class="file-ico"><svg viewBox="0 0 16 16"><path d="M2.5 1.5l1.1 12.3 4.4 1.2 4.4-1.2L13.5 1.5H2.5zm8.9 3.5H4.6l.4 4.5h5.4l-.3 3-2.1.6-2.1-.6-.1-1.4H4.4l.2 2.4 3.4 1 3.4-1 .5-5.5H6.2l-.2-1.5h5.6l.2-1.5z" fill="#264de4"/></svg></span>';
-      }
-      if (ext === 'py') {
-        return '<span class="file-ico"><svg viewBox="0 0 16 16"><path d="M7.9 1.5c-2.3 0-2.2 1-2.2 1v1h4.4v.5H4.7c-1 0-1.8.6-1.8 1.8 0 1.1.7 1.7 1.8 1.7h.9v-.8c0-.9.8-1.7 1.7-1.7h2.8c.8 0 1.5-.6 1.5-1.5v-2c0-.9-.7-1-1.7-1zm-1.1.8a.6.6 0 1 1 0 1.2.6.6 0 0 1 0-1.2z" fill="#3572A5"/><path d="M8.1 14.5c2.3 0 2.2-1 2.2-1v-1H5.9v-.5h5.4c1 0 1.8-.6 1.8-1.8 0-1.1-.7-1.7-1.8-1.7h-.9v.8c0 .9-.8 1.7-1.7 1.7H5.9c-.8 0-1.5.6-1.5 1.5v2c0 .9.7 1 1.7 1zm1.1-.8a.6.6 0 1 1 0-1.2.6.6 0 0 1 0 1.2z" fill="#FFD43B"/></svg></span>';
-      }
-      if (ext === 'md') {
-        return '<span class="file-ico"><svg viewBox="0 0 16 16"><rect width="14" height="10" x="1" y="3" rx="1.5" fill="#42a5f5"/><path d="M3 10V6l1.5 2L6 6v4H4.8V8L3.6 6.5V10H3zm7-1.5V6H8.8v2.5H7.5l2 2.5 2-2.5H10z" fill="#fff"/></svg></span>';
-      }
-      if (ext === 'rs') {
-        return '<span class="file-ico"><svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="5" stroke="#dea584" stroke-width="1.5" fill="none"/><path d="M6 6h2.5c.8 0 1.5.4 1.5 1.2s-.7 1.3-1.5 1.3H7v1.5H6V6zm1 1.5h1.2c.4 0 .8-.2.8-.5s-.4-.5-.8-.5H7v1zm2 2.5l1.5 2h-1.2L8 10h1z" fill="#dea584"/></svg></span>';
-      }
-      if (ext === 'go') {
-        return '<span class="file-ico"><svg viewBox="0 0 16 16"><path d="M3 8c0-2.8 2.2-5 5-5s5 2.2 5 5-2.2 5-5 5-5-2.2-5-5zm7.5.8c.3 0 .5-.2.5-.5s-.2-.5-.5-.5H8v1h2.5z" fill="#00add8"/></svg></span>';
-      }
-      if (['sh', 'bash', 'zsh', 'ps1', 'bat', 'cmd'].includes(ext)) {
-        return '<span class="file-ico"><svg viewBox="0 0 16 16"><rect width="14" height="11" x="1" y="2.5" rx="1.5" fill="#1e293b"/><path d="M3.5 5.5l2.5 2.5-2.5 2.5M7 10.5h5" stroke="#4ade80" stroke-width="1.2" fill="none"/></svg></span>';
-      }
-      if (['yml', 'yaml', 'toml', 'env', 'config'].includes(ext) || base.includes('config')) {
-        return '<span class="file-ico"><svg viewBox="0 0 16 16"><path d="M8 5a3 3 0 1 0 0 6 3 3 0 0 0 0-6zm-4.7 3c0-.3.04-.6.1-.9l-1.3-1 1-1.7 1.6.6c.4-.4.9-.7 1.4-.9L6.3 2h2l.2 1.6c.5.2 1 .5 1.4.9l1.6-.6 1 1.7-1.3 1c.06.3.1.6.1.9s-.04.6-.1.9l1.3 1-1 1.7-1.6-.6c-.4.4-.9.7-1.4.9l-.2 1.6h-2l-.2-1.6c-.5-.2-1-.5-1.4-.9l-1.6.6-1-1.7 1.3-1c-.06-.3-.1-.6-.1-.9z" fill="#9ca3af"/></svg></span>';
-      }
-      return '<span class="file-ico"><svg viewBox="0 0 16 16"><path d="M3 1.5A1.5 1.5 0 0 0 1.5 3v10A1.5 1.5 0 0 0 3 14.5h10a1.5 1.5 0 0 0 1.5-1.5V6L9.5 1.5H3zm6 1v3.5h3.5L9 2.5z" fill="#94a3b8"/></svg></span>';
-    }
+function fileIcon(name, isDir, isOpen) {
+  if (isDir) {
+    return `<span class="file-ico">${isOpen ?
+      '<svg viewBox="0 0 16 16"><path d="M1.5 3A1.5 1.5 0 0 1 3 1.5h3.88a1.5 1.5 0 0 1 1.06.44l1.12 1.12A1.5 1.5 0 0 0 10.12 3.5H13A1.5 1.5 0 0 1 14.5 5v1H3.5a1.5 1.5 0 0 0-1.42 1.002L1.5 8.5V3z" fill="#dcb67a"/><path d="M2.085 7.002A1.5 1.5 0 0 1 3.5 6h11a1.5 1.5 0 0 1 1.415 1.998l-1.5 4.5A1.5 1.5 0 0 1 13 13.5H2a1.5 1.5 0 0 1-1.415-1.998l1.5-4.5z" fill="#e5c890"/></svg>' :
+      '<svg viewBox="0 0 16 16"><path d="M1.5 3A1.5 1.5 0 0 1 3 1.5h3.88a1.5 1.5 0 0 1 1.06.44l1.12 1.12A1.5 1.5 0 0 0 10.12 3.5H13A1.5 1.5 0 0 1 14.5 5v7.5A1.5 1.5 0 0 1 13 14H3a1.5 1.5 0 0 1-1.5-1.5V3z" fill="#dcb67a"/></svg>'
+      }</span>`;
+  }
+  const ext = String(name || '').split('.').pop().toLowerCase();
+  const base = String(name || '').toLowerCase();
+  if (base === '.gitignore' || base === '.gitmodules') {
+    return '<span class="file-ico"><svg viewBox="0 0 16 16"><circle cx="12" cy="4" r="2" fill="#f05032"/><circle cx="4" cy="12" r="2" fill="#f05032"/><circle cx="4" cy="4" r="2" fill="#f05032"/><path d="M4 6v4m8-4v1a3 3 0 0 1-3 3H6" stroke="#f05032" stroke-width="1.2" fill="none"/></svg></span>';
+  }
+  if (ext === 'js' || ext === 'mjs' || ext === 'cjs') {
+    return '<span class="file-ico"><svg viewBox="0 0 16 16"><rect width="14" height="14" x="1" y="1" rx="2" fill="#f7df1e"/><path d="M7 11.5c0 .8-.5 1.2-1.3 1.2-.7 0-1.2-.4-1.3-.9l.8-.5c.1.3.3.5.5.5.3 0 .4-.2.4-.5V6h1v5.5zm4.7-.2c0 .8-.6 1.4-1.5 1.4-.9 0-1.5-.5-1.6-1.2l.9-.4c.1.4.4.7.7.7.3 0 .5-.2.5-.5 0-.4-.3-.6-.8-.8l-.3-.1c-.7-.3-1.1-.7-1.1-1.3 0-.8.6-1.3 1.4-1.3.8 0 1.3.5 1.4 1.1l-.8.4c-.1-.3-.3-.6-.6-.6-.3 0-.5.2-.5.4 0 .3.2.5.7.7l.3.1c.8.3 1.3.7 1.3 1.5z" fill="#000"/></svg></span>';
+  }
+  if (ext === 'ts') {
+    return '<span class="file-ico"><svg viewBox="0 0 16 16"><rect width="14" height="14" x="1" y="1" rx="2" fill="#3178c6"/><path d="M3.5 6.5h3.4V5H2v1.5h1.5v6.2h1.5V6.5zm7.3 2.8c0-.9-.7-1.4-1.6-1.8l-.4-.2c-.4-.2-.6-.3-.6-.6 0-.3.2-.5.6-.5.4 0 .6.2.7.5l1.2-.6c-.3-.7-.9-1.1-1.9-1.1-1.1 0-1.9.6-1.9 1.7 0 .8.6 1.3 1.5 1.7l.4.2c.5.2.7.4.7.7 0 .3-.3.5-.7.5-.5 0-.8-.3-.9-.7l-1.3.5c.3 1 1.1 1.4 2.2 1.4 1.2 0 2-.7 2-1.7z" fill="#fff"/></svg></span>';
+  }
+  if (ext === 'jsx' || ext === 'tsx') {
+    return '<span class="file-ico"><svg viewBox="0 0 16 16"><ellipse cx="8" cy="8" rx="6.5" ry="2.6" stroke="#61dafb" stroke-width="1.1" fill="none" transform="rotate(30 8 8)"/><ellipse cx="8" cy="8" rx="6.5" ry="2.6" stroke="#61dafb" stroke-width="1.1" fill="none" transform="rotate(90 8 8)"/><ellipse cx="8" cy="8" rx="6.5" ry="2.6" stroke="#61dafb" stroke-width="1.1" fill="none" transform="rotate(150 8 8)"/><circle cx="8" cy="8" r="1.3" fill="#61dafb"/></svg></span>';
+  }
+  if (ext === 'json') {
+    return '<span class="file-ico"><svg viewBox="0 0 16 16"><path d="M5.5 2C4.12 2 3 3.12 3 4.5v1.25c0 .69-.56 1.25-1.25 1.25H1v2h.75C2.44 9 3 9.56 3 10.25V11.5C3 12.88 4.12 14 5.5 14H7v-1.5H5.5c-.28 0-.5-.22-.5-.5v-1.5c0-1.1-.9-2-2-2v-1c1.1 0 2-.9 2-2V4c0-.28.22-.5.5-.5H7V2H5.5zm5 0C11.88 2 13 3.12 13 4.5v1.25c0 .69.56 1.25 1.25 1.25H15v2h-.75c-.69 0-1.25.56-1.25 1.25V11.5c0 1.38-1.12 2.5-2.5 2.5H9v-1.5h1.5c.28 0 .5-.22.5-.5v-1.5c0-1.1.9-2 2-2v-1c-1.1 0-2-.9-2-2V4c0-.28-.22-.5-.5-.5H9V2h1.5z" fill="#cbcb41"/></svg></span>';
+  }
+  if (ext === 'html' || ext === 'htm') {
+    return '<span class="file-ico"><svg viewBox="0 0 16 16"><path d="M2.5 1.5l1.1 12.3 4.4 1.2 4.4-1.2L13.5 1.5H2.5zm8.9 4H5.9l.1 1.5h5.3l-.3 3.6-2.9.8-2.9-.8-.2-2.1h1.5l.1 1 1.5.4 1.5-.4.1-1.6H4.2l-.4-4.5h7.8l-.2 1.6z" fill="#e34f26"/></svg></span>';
+  }
+  if (ext === 'css' || ext === 'scss') {
+    return '<span class="file-ico"><svg viewBox="0 0 16 16"><path d="M2.5 1.5l1.1 12.3 4.4 1.2 4.4-1.2L13.5 1.5H2.5zm8.9 3.5H4.6l.4 4.5h5.4l-.3 3-2.1.6-2.1-.6-.1-1.4H4.4l.2 2.4 3.4 1 3.4-1 .5-5.5H6.2l-.2-1.5h5.6l.2-1.5z" fill="#264de4"/></svg></span>';
+  }
+  if (ext === 'py') {
+    return '<span class="file-ico"><svg viewBox="0 0 16 16"><path d="M7.9 1.5c-2.3 0-2.2 1-2.2 1v1h4.4v.5H4.7c-1 0-1.8.6-1.8 1.8 0 1.1.7 1.7 1.8 1.7h.9v-.8c0-.9.8-1.7 1.7-1.7h2.8c.8 0 1.5-.6 1.5-1.5v-2c0-.9-.7-1-1.7-1zm-1.1.8a.6.6 0 1 1 0 1.2.6.6 0 0 1 0-1.2z" fill="#3572A5"/><path d="M8.1 14.5c2.3 0 2.2-1 2.2-1v-1H5.9v-.5h5.4c1 0 1.8-.6 1.8-1.8 0-1.1-.7-1.7-1.8-1.7h-.9v.8c0 .9-.8 1.7-1.7 1.7H5.9c-.8 0-1.5.6-1.5 1.5v2c0 .9.7 1 1.7 1zm1.1-.8a.6.6 0 1 1 0-1.2.6.6 0 0 1 0 1.2z" fill="#FFD43B"/></svg></span>';
+  }
+  if (ext === 'md') {
+    return '<span class="file-ico"><svg viewBox="0 0 16 16"><rect width="14" height="10" x="1" y="3" rx="1.5" fill="#42a5f5"/><path d="M3 10V6l1.5 2L6 6v4H4.8V8L3.6 6.5V10H3zm7-1.5V6H8.8v2.5H7.5l2 2.5 2-2.5H10z" fill="#fff"/></svg></span>';
+  }
+  if (ext === 'rs') {
+    return '<span class="file-ico"><svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="5" stroke="#dea584" stroke-width="1.5" fill="none"/><path d="M6 6h2.5c.8 0 1.5.4 1.5 1.2s-.7 1.3-1.5 1.3H7v1.5H6V6zm1 1.5h1.2c.4 0 .8-.2.8-.5s-.4-.5-.8-.5H7v1zm2 2.5l1.5 2h-1.2L8 10h1z" fill="#dea584"/></svg></span>';
+  }
+  if (ext === 'go') {
+    return '<span class="file-ico"><svg viewBox="0 0 16 16"><path d="M3 8c0-2.8 2.2-5 5-5s5 2.2 5 5-2.2 5-5 5-5-2.2-5-5zm7.5.8c.3 0 .5-.2.5-.5s-.2-.5-.5-.5H8v1h2.5z" fill="#00add8"/></svg></span>';
+  }
+  if (['sh', 'bash', 'zsh', 'ps1', 'bat', 'cmd'].includes(ext)) {
+    return '<span class="file-ico"><svg viewBox="0 0 16 16"><rect width="14" height="11" x="1" y="2.5" rx="1.5" fill="#1e293b"/><path d="M3.5 5.5l2.5 2.5-2.5 2.5M7 10.5h5" stroke="#4ade80" stroke-width="1.2" fill="none"/></svg></span>';
+  }
+  if (['yml', 'yaml', 'toml', 'env', 'config'].includes(ext) || base.includes('config')) {
+    return '<span class="file-ico"><svg viewBox="0 0 16 16"><path d="M8 5a3 3 0 1 0 0 6 3 3 0 0 0 0-6zm-4.7 3c0-.3.04-.6.1-.9l-1.3-1 1-1.7 1.6.6c.4-.4.9-.7 1.4-.9L6.3 2h2l.2 1.6c.5.2 1 .5 1.4.9l1.6-.6 1 1.7-1.3 1c.06.3.1.6.1.9s-.04.6-.1.9l1.3 1-1 1.7-1.6-.6c-.4.4-.9.7-1.4.9l-.2 1.6h-2l-.2-1.6c-.5-.2-1-.5-1.4-.9l-1.6.6-1-1.7 1.3-1c-.06-.3-.1-.6-.1-.9z" fill="#9ca3af"/></svg></span>';
+  }
+  return '<span class="file-ico"><svg viewBox="0 0 16 16"><path d="M3 1.5A1.5 1.5 0 0 0 1.5 3v10A1.5 1.5 0 0 0 3 14.5h10a1.5 1.5 0 0 0 1.5-1.5V6L9.5 1.5H3zm6 1v3.5h3.5L9 2.5z" fill="#94a3b8"/></svg></span>';
+}
 
     const expanded = new Set();
     async function renderDir(rel, box, depth) {
@@ -3665,54 +3846,54 @@
     });
     const savedPanelH = parseInt(store.get('panelH', ''), 10);
     if (savedPanelH) document.documentElement.style.setProperty('--panelH', Math.min(600, Math.max(120, savedPanelH)) + 'px');
-    const ANSI_COLORS = {
-      '1': 'font-weight:600;',
-      '2': 'opacity:0.75;',
-      '30': 'color:#6b7280;',
-      '31': 'color:var(--bad);',
-      '32': 'color:var(--ok);',
-      '33': 'color:var(--warn);',
-      '34': 'color:#3b82f6;',
-      '35': 'color:#a855f7;',
-      '36': 'color:#06b6d4;',
-      '37': 'color:var(--text);',
-      '90': 'color:var(--dim);',
-      '91': 'color:#f87171;',
-      '92': 'color:#4ade80;',
-      '93': 'color:#fbbf24;',
-      '94': 'color:#60a5fa;',
-      '95': 'color:#c084fc;',
-      '96': 'color:#22d3ee;',
-      '97': 'color:#ffffff;',
-    };
-    function ansiToHtml(raw) {
-      const clean = String(raw || '').replace(/\r(?!\n)/g, '\n');
-      const tokens = clean.split(/(\x1b\[[0-9;]*m|\x1b\][^\x07]*(?:\x07|\x1b\\))/g);
-      let out = '', style = '';
-      for (const t of tokens) {
-        if (!t) continue;
-        if (t.startsWith('\x1b[')) {
-          const codeStr = t.slice(2, -1);
-          if (!codeStr || codeStr === '0') {
-            if (style) { out += '</span>'; style = ''; }
-          } else {
-            let nextStyle = '';
-            for (const c of codeStr.split(';')) {
-              if (ANSI_COLORS[c]) nextStyle += ANSI_COLORS[c];
-            }
-            if (style) out += '</span>';
-            style = nextStyle;
-            if (style) out += `<span style="${style}">`;
-          }
-        } else if (t.startsWith('\x1b]')) {
-          // OSC sequence, ignore
-        } else {
-          out += esc(t.replace(/\x1b\[[0-?]*[ -/]*[@-~]/g, ''));
+const ANSI_COLORS = {
+  '1': 'font-weight:600;',
+  '2': 'opacity:0.75;',
+  '30': 'color:#6b7280;',
+  '31': 'color:var(--bad);',
+  '32': 'color:var(--ok);',
+  '33': 'color:var(--warn);',
+  '34': 'color:#3b82f6;',
+  '35': 'color:#a855f7;',
+  '36': 'color:#06b6d4;',
+  '37': 'color:var(--text);',
+  '90': 'color:var(--dim);',
+  '91': 'color:#f87171;',
+  '92': 'color:#4ade80;',
+  '93': 'color:#fbbf24;',
+  '94': 'color:#60a5fa;',
+  '95': 'color:#c084fc;',
+  '96': 'color:#22d3ee;',
+  '97': 'color:#ffffff;',
+};
+function ansiToHtml(raw) {
+  const clean = String(raw || '').replace(/\r(?!\n)/g, '\n');
+  const tokens = clean.split(/(\x1b\[[0-9;]*m|\x1b\][^\x07]*(?:\x07|\x1b\\))/g);
+  let out = '', style = '';
+  for (const t of tokens) {
+    if (!t) continue;
+    if (t.startsWith('\x1b[')) {
+      const codeStr = t.slice(2, -1);
+      if (!codeStr || codeStr === '0') {
+        if (style) { out += '</span>'; style = ''; }
+      } else {
+        let nextStyle = '';
+        for (const c of codeStr.split(';')) {
+          if (ANSI_COLORS[c]) nextStyle += ANSI_COLORS[c];
         }
+        if (style) out += '</span>';
+        style = nextStyle;
+        if (style) out += `<span style="${style}">`;
       }
-      if (style) out += '</span>';
-      return out;
+    } else if (t.startsWith('\x1b]')) {
+      // OSC sequence, ignore
+    } else {
+      out += esc(t.replace(/\x1b\[[0-?]*[ -/]*[@-~]/g, ''));
     }
+  }
+  if (style) out += '</span>';
+  return out;
+}
     function termAppend(text, cls, targetTabId) {
       const target = targetTabId ? termTabsList.find(t => t.id === targetTabId) : getActiveTermTab();
       if (target) {
@@ -4495,6 +4676,7 @@
     });
 
     function interrupt() {
+      if (!$('findBar')?.hidden) { closeFindBar(); return; }
       if (!$('composerOverlay')?.hidden) { closeComposer(); return; }
       if (!$('mentionMenu')?.hidden) { hideMentionMenu(); return; }
       if (!$('inlineAiBar')?.hidden) { hideInlineAi(); return; }
@@ -4520,21 +4702,236 @@
         editor.focus();
       }
     }
-    function md(t) {
-      return t.split('```').map((p, i) => {
-        if (i % 2) {
-          const nl = p.indexOf('\n');
-          const lang = nl >= 0 ? p.slice(0, nl).trim().toLowerCase() : '';
-          const code = nl >= 0 ? p.slice(nl + 1) : p;
-          const isCmd = ['bash', 'sh', 'shell', 'ps1', 'powershell', 'cmd', 'terminal'].includes(lang);
-          return `<div class="code"><button class="copy">Copy</button><button class="copy ins" title="Insert at the cursor in the open file">Insert</button>${isCmd ? '<button class="copy run" title="Run in terminal">Run</button>' : ''}<pre>${esc(code.replace(/\n$/, ''))}</pre></div>`;
+function renderMermaidSvg(raw) {
+  try {
+    const text = String(raw || '').trim();
+    const lines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+    if (!lines.length) return '<svg width="200" height="60"><text x="10" y="30" fill="gray">Empty Diagram</text></svg>';
+
+    const first = lines[0].toLowerCase();
+    const isSequence = first.startsWith('sequence');
+    const isLR = first.includes(' lr');
+
+    if (isSequence) {
+      const actors = new Set();
+      const messages = [];
+      for (let i = 1; i < lines.length; i++) {
+        const l = lines[i];
+        if (l.startsWith('participant ') || l.startsWith('actor ')) {
+          const act = l.replace(/^(participant|actor)\s+/, '').split(/\s+as\s+/)[0].trim();
+          actors.add(act);
+          continue;
         }
-        return esc(p).replace(/`([^`\n]+)`/g, '<code>$1</code>').replace(/\*\*([^*\n]+)\*\*/g, '<b>$1</b>');
-      }).join('');
+        const m = l.match(/^([a-zA-Z0-9_\-]+)\s*(->>|-->>|->|-->)\s*([a-zA-Z0-9_\-]+)\s*:\s*(.*)$/);
+        if (m) {
+          actors.add(m[1]);
+          actors.add(m[3]);
+          messages.push({ from: m[1], to: m[3], arrow: m[2], text: m[4] });
+        }
+      }
+      const actList = Array.from(actors);
+      if (!actList.length) actList.push('A', 'B');
+      const actWidth = 100, spacing = 160;
+      const totalWidth = Math.max(340, actList.length * spacing + 40);
+      const totalHeight = Math.max(180, 80 + messages.length * 50 + 40);
+      let svg = `<svg width="${totalWidth}" height="${totalHeight}" viewBox="0 0 ${totalWidth} ${totalHeight}" xmlns="http://www.w3.org/2000/svg">`;
+      svg += `<defs><marker id="seqarr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M 0 0 L 10 5 L 0 10 z" fill="var(--accent, #4ade80)"/></marker></defs>`;
+      
+      const actX = {};
+      actList.forEach((a, idx) => {
+        const x = 40 + idx * spacing + actWidth / 2;
+        actX[a] = x;
+        svg += `<rect x="${x - actWidth/2}" y="15" width="${actWidth}" height="32" rx="6" fill="var(--panel, #1b2820)" stroke="var(--line, #2a3a2f)" stroke-width="1.5"/>`;
+        svg += `<text x="${x}" y="36" font-family="system-ui, sans-serif" font-size="12" font-weight="600" fill="var(--text, #e3efe7)" text-anchor="middle">${esc(a)}</text>`;
+        svg += `<line x1="${x}" y1="47" x2="${x}" y2="${totalHeight - 35}" stroke="var(--line, #2a3a2f)" stroke-dasharray="4,4" stroke-width="1.2"/>`;
+        svg += `<rect x="${x - actWidth/2}" y="${totalHeight - 35}" width="${actWidth}" height="28" rx="6" fill="var(--panel, #1b2820)" stroke="var(--line, #2a3a2f)" stroke-width="1.5"/>`;
+        svg += `<text x="${x}" y="${totalHeight - 17}" font-family="system-ui, sans-serif" font-size="12" font-weight="600" fill="var(--text, #e3efe7)" text-anchor="middle">${esc(a)}</text>`;
+      });
+
+      messages.forEach((msg, idx) => {
+        const y = 80 + idx * 48;
+        const x1 = actX[msg.from] || 60;
+        const x2 = actX[msg.to] || 200;
+        const isDashed = msg.arrow.includes('--');
+        svg += `<line x1="${x1}" y1="${y}" x2="${x2}" y2="${y}" stroke="var(--accent, #4ade80)" stroke-width="1.8" ${isDashed ? 'stroke-dasharray="4,4"' : ''} marker-end="url(#seqarr)"/>`;
+        const midX = (x1 + x2) / 2;
+        svg += `<rect x="${midX - 50}" y="${y - 18}" width="100" height="16" rx="3" fill="var(--bg, #0e1511)" opacity="0.85"/>`;
+        svg += `<text x="${midX}" y="${y - 6}" font-family="system-ui, sans-serif" font-size="11" fill="var(--text, #e3efe7)" text-anchor="middle">${esc(msg.text)}</text>`;
+      });
+      svg += `</svg>`;
+      return svg;
     }
+
+    const nodes = new Map();
+    const edges = [];
+    for (let i = (first.startsWith('flowchart') || first.startsWith('graph')) ? 1 : 0; i < lines.length; i++) {
+      const line = lines[i];
+      if (line.startsWith('%%') || line.startsWith('classDef') || line.startsWith('style ') || line.startsWith('subgraph') || line === 'end') continue;
+      
+      const edgeRegex = /([a-zA-Z0-9_\-]+)\s*(?:\[([^\]]+)\]|\(([^\)]+)\)|\{([^\}]+)\})?\s*(-->|---|-.->|==>)(?:\|([^\|]+)\|)?\s*([a-zA-Z0-9_\-]+)\s*(?:\[([^\]]+)\]|\(([^\)]+)\)|\{([^\}]+)\})?/;
+      const match = line.match(edgeRegex);
+      if (match) {
+        const [_, fromId, f1, f2, f3, arrow, label, toId, t1, t2, t3] = match;
+        const fromLabel = f1 || f2 || f3 || fromId;
+        const toLabel = t1 || t2 || t3 || toId;
+        if (!nodes.has(fromId)) nodes.set(fromId, { id: fromId, label: fromLabel, shape: f3 ? 'diamond' : f2 ? 'round' : 'rect' });
+        if (!nodes.has(toId)) nodes.set(toId, { id: toId, label: toLabel, shape: t3 ? 'diamond' : t2 ? 'round' : 'rect' });
+        edges.push({ from: fromId, to: toId, label: label || '', arrow });
+        continue;
+      }
+
+      const nodeOnly = line.match(/^([a-zA-Z0-9_\-]+)\s*(?:\[([^\]]+)\]|\(([^\)]+)\)|\{([^\}]+)\})/);
+      if (nodeOnly) {
+        const [_, nId, l1, l2, l3] = nodeOnly;
+        nodes.set(nId, { id: nId, label: l1 || l2 || l3 || nId, shape: l3 ? 'diamond' : l2 ? 'round' : 'rect' });
+      }
+    }
+
+    if (!nodes.size) {
+      return '<svg width="240" height="60"><text x="10" y="35" font-family="monospace" font-size="12" fill="var(--dim, #9ab0a2)">Diagram preview</text></svg>';
+    }
+
+    const nodeIds = Array.from(nodes.keys());
+    const inDegree = {};
+    nodeIds.forEach(id => inDegree[id] = 0);
+    edges.forEach(e => { inDegree[e.to] = (inDegree[e.to] || 0) + 1; });
+
+    const layers = [];
+    let currentLayer = nodeIds.filter(id => inDegree[id] === 0);
+    if (!currentLayer.length) currentLayer = [nodeIds[0]];
+    const visited = new Set(currentLayer);
+    layers.push(currentLayer);
+
+    while (visited.size < nodeIds.length) {
+      const nextLayer = [];
+      for (const e of edges) {
+        if (visited.has(e.from) && !visited.has(e.to)) {
+          nextLayer.push(e.to);
+          visited.add(e.to);
+        }
+      }
+      if (!nextLayer.length) {
+        for (const id of nodeIds) {
+          if (!visited.has(id)) { nextLayer.push(id); visited.add(id); break; }
+        }
+      }
+      if (nextLayer.length) layers.push(nextLayer);
+      else break;
+    }
+
+    const nodeW = 120, nodeH = 38;
+    const xGap = isLR ? 150 : 40, yGap = isLR ? 30 : 65;
+    const coords = {};
+
+    let maxW = 300, maxH = 150;
+    if (isLR) {
+      layers.forEach((layer, col) => {
+        layer.forEach((id, row) => {
+          const x = 30 + col * (nodeW + xGap);
+          const y = 30 + row * (nodeH + yGap);
+          coords[id] = { x, y, cx: x + nodeW / 2, cy: y + nodeH / 2 };
+          if (x + nodeW + 30 > maxW) maxW = x + nodeW + 30;
+          if (y + nodeH + 30 > maxH) maxH = y + nodeH + 30;
+        });
+      });
+    } else {
+      layers.forEach((layer, row) => {
+        layer.forEach((id, col) => {
+          const x = 30 + col * (nodeW + xGap);
+          const y = 30 + row * (nodeH + yGap);
+          coords[id] = { x, y, cx: x + nodeW / 2, cy: y + nodeH / 2 };
+          if (x + nodeW + 30 > maxW) maxW = x + nodeW + 30;
+          if (y + nodeH + 30 > maxH) maxH = y + nodeH + 30;
+        });
+      });
+    }
+
+    let svg = `<svg width="${maxW}" height="${maxH}" viewBox="0 0 ${maxW} ${maxH}" xmlns="http://www.w3.org/2000/svg">`;
+    svg += `<defs><marker id="marr" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M 0 0 L 10 5 L 0 10 z" fill="var(--accent, #4ade80)"/></marker></defs>`;
+
+    edges.forEach(e => {
+      const from = coords[e.from], to = coords[e.to];
+      if (!from || !to) return;
+      const isDashed = e.arrow.includes('--');
+      const isThick = e.arrow.includes('==');
+      let x1 = from.cx, y1 = from.cy, x2 = to.cx, y2 = to.cy;
+      if (isLR) {
+        x1 = from.x + nodeW; y1 = from.cy;
+        x2 = to.x; y2 = to.cy;
+      } else {
+        if (y2 > y1) { y1 = from.y + nodeH; y2 = to.y; }
+        else { y1 = from.y; y2 = to.y + nodeH; }
+      }
+      svg += `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="var(--accent, #4ade80)" stroke-width="${isThick ? '2.5' : '1.5'}" ${isDashed ? 'stroke-dasharray="4,4"' : ''} marker-end="url(#marr)"/>`;
+      if (e.label) {
+        const mx = (x1 + x2) / 2, my = (y1 + y2) / 2;
+        svg += `<rect x="${mx - 30}" y="${my - 9}" width="60" height="15" rx="3" fill="var(--panel, #131c16)" stroke="var(--line, #2a3a2f)" stroke-width="0.8"/>`;
+        svg += `<text x="${mx}" y="${my + 2}" font-family="system-ui, sans-serif" font-size="9.5" fill="var(--text, #e3efe7)" text-anchor="middle">${esc(e.label)}</text>`;
+      }
+    });
+
+    nodes.forEach(node => {
+      const c = coords[node.id];
+      if (!c) return;
+      const rx = node.shape === 'round' ? 14 : 6;
+      svg += `<rect x="${c.x}" y="${c.y}" width="${nodeW}" height="${nodeH}" rx="${rx}" fill="var(--raise, #1b2820)" stroke="var(--line, #2a3a2f)" stroke-width="1.5"/>`;
+      svg += `<text x="${c.cx}" y="${c.cy + 4}" font-family="system-ui, sans-serif" font-size="11.5" font-weight="600" fill="var(--text, #e3efe7)" text-anchor="middle">${esc(node.label)}</text>`;
+    });
+
+    svg += `</svg>`;
+    return svg;
+  } catch (e) {
+    return `<div style="color:var(--warn);font-size:11px;padding:6px">Could not render diagram: ${esc(e.message)}</div>`;
+  }
+}
+function md(t) {
+  return t.split('```').map((p, i) => {
+    if (i % 2) {
+      const nl = p.indexOf('\n');
+      const lang = nl >= 0 ? p.slice(0, nl).trim().toLowerCase() : '';
+      const code = nl >= 0 ? p.slice(nl + 1) : p;
+      const isCmd = ['bash', 'sh', 'shell', 'ps1', 'powershell', 'cmd', 'terminal'].includes(lang);
+      const isHtmlSvg = ['html', 'svg'].includes(lang);
+      const isMermaid = lang === 'mermaid';
+
+      if (isMermaid && typeof renderMermaidSvg === 'function') {
+        const svg = renderMermaidSvg(code);
+        return `<div class="code mermaid-card"><div style="display:flex;justify-content:flex-end;gap:4px;margin-bottom:4px"><button class="copy prev-btn" title="Toggle Diagram/Code">Code</button><button class="copy">Copy</button></div><div class="mermaid-wrap">${svg}</div><pre hidden>${esc(code.replace(/\n$/, ''))}</pre></div>`;
+      }
+
+      return `<div class="code"><button class="copy">Copy</button><button class="copy ins" title="Insert at the cursor in the open file">Insert</button>${isCmd ? '<button class="copy run" title="Run in terminal">Run</button>' : ''}${isHtmlSvg ? '<button class="copy prev-btn" title="Live Preview Artifact">Preview</button>' : ''}<pre>${esc(code.replace(/\n$/, ''))}</pre></div>`;
+    }
+    return esc(p).replace(/`([^`\n]+)`/g, '<code>$1</code>').replace(/\*\*([^*\n]+)\*\*/g, '<b>$1</b>');
+  }).join('');
+}
     log.addEventListener('click', (e) => {
       const b = e.target; if (!b.classList.contains('copy')) return;
-      const code = b.parentElement.querySelector('pre').textContent;
+      const code = b.parentElement.querySelector('pre') ? b.parentElement.querySelector('pre').textContent : '';
+      if (b.classList.contains('prev-btn')) {
+        const card = b.closest('.code');
+        if (!card) return;
+        const mWrap = card.querySelector('.mermaid-wrap');
+        const pre = card.querySelector('pre');
+        if (mWrap && pre) {
+          const showingCode = !pre.hidden;
+          pre.hidden = showingCode;
+          mWrap.hidden = !showingCode;
+          b.textContent = showingCode ? 'Code' : 'Diagram';
+          return;
+        }
+        let frame = card.querySelector('.artifact-preview-frame');
+        if (frame) {
+          frame.remove();
+          b.textContent = 'Preview';
+        } else {
+          frame = el('iframe', 'artifact-preview-frame');
+          frame.sandbox = 'allow-scripts';
+          frame.srcdoc = code;
+          card.appendChild(frame);
+          b.textContent = 'Hide';
+        }
+        return;
+      }
       if (b.classList.contains('ins')) {
         if (!current) { b.textContent = 'Open a file'; setTimeout(() => (b.textContent = 'Insert'), 1400); return; }
         editor.executeEdits('chat', [{ range: editor.getSelection(), text: code, forceMoveMarkers: true }]); editor.focus();
@@ -4838,28 +5235,28 @@
         if (all) all.onclick = () => { autoEdits = true; $('ctxInfo').textContent = 'Auto-allowing edits in this chat'; b.remove(); setStatus('Applying'); res(true); };
       });
     }
-    function lineDiff(o, n) {
-      const a = String(o).replace(/\r\n/g, '\n').split('\n');
-      const b = String(n).replace(/\r\n/g, '\n').split('\n');
-      let s = 0;
-      while (s < a.length && s < b.length && a[s] === b[s]) s++;
-      let ea = a.length, eb = b.length;
-      while (ea > s && eb > s && a[ea - 1] === b[eb - 1]) { ea--; eb--; }
-      const A = a.slice(s, ea), B = b.slice(s, eb), out = [];
-      if (A.length <= 2000 && B.length <= 2000 && A.length * B.length <= 1500000) {
-        const dp = Array.from({ length: A.length + 1 }, () => new Uint32Array(B.length + 1));
-        for (let i = A.length - 1; i >= 0; i--) for (let j = B.length - 1; j >= 0; j--) dp[i][j] = A[i] === B[j] ? dp[i + 1][j + 1] + 1 : Math.max(dp[i + 1][j], dp[i][j + 1]);
-        for (let i = 0, j = 0; i < A.length || j < B.length;) {
-          if (i < A.length && j < B.length && A[i] === B[j]) { out.push(['ctx', A[i]]); i++; j++; }
-          else if (j >= B.length || (i < A.length && dp[i + 1][j] >= dp[i][j + 1])) out.push(['del', A[i++]]);
-          else out.push(['add', B[j++]]);
-        }
-      } else {
-        for (const l of A) out.push(['del', l]);
-        for (const l of B) out.push(['add', l]);
-      }
-      return out;
+function lineDiff(o, n) {
+  const a = String(o).replace(/\r\n/g, '\n').split('\n');
+  const b = String(n).replace(/\r\n/g, '\n').split('\n');
+  let s = 0;
+  while (s < a.length && s < b.length && a[s] === b[s]) s++;
+  let ea = a.length, eb = b.length;
+  while (ea > s && eb > s && a[ea - 1] === b[eb - 1]) { ea--; eb--; }
+  const A = a.slice(s, ea), B = b.slice(s, eb), out = [];
+  if (A.length <= 2000 && B.length <= 2000 && A.length * B.length <= 1500000) {
+    const dp = Array.from({ length: A.length + 1 }, () => new Uint32Array(B.length + 1));
+    for (let i = A.length - 1; i >= 0; i--) for (let j = B.length - 1; j >= 0; j--) dp[i][j] = A[i] === B[j] ? dp[i + 1][j + 1] + 1 : Math.max(dp[i + 1][j], dp[i][j + 1]);
+    for (let i = 0, j = 0; i < A.length || j < B.length;) {
+      if (i < A.length && j < B.length && A[i] === B[j]) { out.push(['ctx', A[i]]); i++; j++; }
+      else if (j >= B.length || (i < A.length && dp[i + 1][j] >= dp[i][j + 1])) out.push(['del', A[i++]]);
+      else out.push(['add', B[j++]]);
     }
+  } else {
+    for (const l of A) out.push(['del', l]);
+    for (const l of B) out.push(['add', l]);
+  }
+  return out;
+}
     function diffHtml(o, n) {
       const rows = lineDiff(o, n), MAX = 500;
       return rows.slice(0, MAX).map(([k, l]) => k === 'ctx' ? `<div class="ctx">  ${esc(l)}</div>` : k === 'del' ? `<div class="del">- ${esc(l)}</div>` : `<div class="add">+ ${esc(l)}</div>`).join('')
@@ -5026,6 +5423,9 @@
       if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 'p') { e.preventDefault(); if (editor) { editor.focus(); editor.trigger('keyboard', 'editor.action.quickCommand'); } return; }
       if (e.ctrlKey && !e.shiftKey && e.key.toLowerCase() === 'g') { e.preventDefault(); goToLine(); return; }
       if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 'f') { e.preventDefault(); focusSearch(); return; }
+      if (e.ctrlKey && !e.shiftKey && e.key.toLowerCase() === 'f') { e.preventDefault(); openFindBar(false); return; }
+      if (e.ctrlKey && !e.shiftKey && e.key.toLowerCase() === 'h') { e.preventDefault(); openFindBar(true); return; }
+      if (e.ctrlKey && !e.shiftKey && e.key.toLowerCase() === 'm') { e.preventDefault(); toggleVoiceDictation(); return; }
       // Contributed extension shortcuts (e.g. Ctrl+Escape for opencode)
       if (Array.isArray(extVsixList)) {
         for (const v of extVsixList) {
@@ -5118,44 +5518,44 @@
 
     // ---------- 2. Document Symbol Outline ----------
     let activeSymbols = [];
-    function extractDocumentSymbols(text, filename) {
-      if (!text) return [];
-      const symbols = [];
-      const lines = text.split(/\r?\n/);
-      const ext = (filename || '').split('.').pop().toLowerCase();
+function extractDocumentSymbols(text, filename) {
+  if (!text) return [];
+  const symbols = [];
+  const lines = text.split(/\r?\n/);
+  const ext = (filename || '').split('.').pop().toLowerCase();
 
-      for (let i = 0; i < lines.length; i++) {
-        const line = lines[i];
-        const lnum = i + 1;
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const lnum = i + 1;
 
-        // JavaScript / TypeScript / PHP
-        if (['js', 'ts', 'jsx', 'tsx', 'mjs', 'php'].includes(ext)) {
-          const fnMatch = line.match(/(?:async\s+)?function\s*([a-zA-Z0-9_$]+)/);
-          if (fnMatch) { symbols.push({ name: fnMatch[1], kind: 'fn', line: lnum }); continue; }
+    // JavaScript / TypeScript / PHP
+    if (['js', 'ts', 'jsx', 'tsx', 'mjs', 'php'].includes(ext)) {
+      const fnMatch = line.match(/(?:async\s+)?function\s*([a-zA-Z0-9_$]+)/);
+      if (fnMatch) { symbols.push({ name: fnMatch[1], kind: 'fn', line: lnum }); continue; }
 
-          const arrowMatch = line.match(/(?:const|let|var)\s+([a-zA-Z0-9_$]+)\s*=\s*(?:async\s*)?(?:\([^)]*\)|[a-zA-Z0-9_$]+)\s*=>/);
-          if (arrowMatch) { symbols.push({ name: arrowMatch[1], kind: 'fn', line: lnum }); continue; }
+      const arrowMatch = line.match(/(?:const|let|var)\s+([a-zA-Z0-9_$]+)\s*=\s*(?:async\s*)?(?:\([^)]*\)|[a-zA-Z0-9_$]+)\s*=>/);
+      if (arrowMatch) { symbols.push({ name: arrowMatch[1], kind: 'fn', line: lnum }); continue; }
 
-          const classMatch = line.match(/(?:class|interface|type)\s+([a-zA-Z0-9_$]+)/);
-          if (classMatch) { symbols.push({ name: classMatch[1], kind: 'cls', line: lnum }); continue; }
+      const classMatch = line.match(/(?:class|interface|type)\s+([a-zA-Z0-9_$]+)/);
+      if (classMatch) { symbols.push({ name: classMatch[1], kind: 'cls', line: lnum }); continue; }
 
-          const methodMatch = line.match(/^\s*(?:(?:public|private|protected|static|async)\s+)*([a-zA-Z0-9_$]+)\s*\([^)]*\)\s*\{/);
-          if (methodMatch && !['if', 'for', 'while', 'switch', 'catch'].includes(methodMatch[1])) {
-            symbols.push({ name: methodMatch[1], kind: 'mth', line: lnum });
-            continue;
-          }
-        }
-
-        // Python
-        if (ext === 'py') {
-          const pyFn = line.match(/(?:async\s+)?def\s+([a-zA-Z0-9_]+)/);
-          if (pyFn) { symbols.push({ name: pyFn[1], kind: 'fn', line: lnum }); continue; }
-          const pyCls = line.match(/class\s+([a-zA-Z0-9_]+)/);
-          if (pyCls) { symbols.push({ name: pyCls[1], kind: 'cls', line: lnum }); continue; }
-        }
+      const methodMatch = line.match(/^\s*(?:(?:public|private|protected|static|async)\s+)*([a-zA-Z0-9_$]+)\s*\([^)]*\)\s*\{/);
+      if (methodMatch && !['if', 'for', 'while', 'switch', 'catch'].includes(methodMatch[1])) {
+        symbols.push({ name: methodMatch[1], kind: 'mth', line: lnum });
+        continue;
       }
-      return symbols;
     }
+
+    // Python
+    if (ext === 'py') {
+      const pyFn = line.match(/(?:async\s+)?def\s+([a-zA-Z0-9_]+)/);
+      if (pyFn) { symbols.push({ name: pyFn[1], kind: 'fn', line: lnum }); continue; }
+      const pyCls = line.match(/class\s+([a-zA-Z0-9_]+)/);
+      if (pyCls) { symbols.push({ name: pyCls[1], kind: 'cls', line: lnum }); continue; }
+    }
+  }
+  return symbols;
+}
 
     function updateOutline() {
       const box = $('outlineList');
@@ -5212,7 +5612,10 @@
         automaticLayout: true,
         fontSize: 13,
         fontFamily: 'var(--mono)',
-        minimap: { enabled: false },
+        bracketPairColorization: { enabled: true },
+        guides: { bracketPairs: true },
+        stickyScroll: { enabled: true, maxLineCount: 5 },
+        minimap: { enabled: store.get('minimap', '0') === '1' },
         lineNumbers: 'on',
         renderWhitespace: 'selection',
         scrollBeyondLastLine: false,
@@ -5611,6 +6014,309 @@
       closeComposer();
     });
 
+    // ---------- 7. Project Tasks Runner ----------
+    async function refreshTasks() {
+      const listEl = $('tasksList');
+      if (!listEl) return;
+      listEl.innerHTML = '<div style="font-size:10.5px;color:var(--dim);padding:4px">Scanning tasks...</div>';
+      try {
+        const tasks = await api.listProjectTasks();
+        if (!tasks || !tasks.length) {
+          listEl.innerHTML = '<div style="font-size:10.5px;color:var(--dim);padding:4px">No runnable tasks found</div>';
+          return;
+        }
+        listEl.innerHTML = '';
+        for (const task of tasks) {
+          const item = el('div', 'taskItem');
+          item.title = `${task.detail || task.command} (${task.source})`;
+          item.innerHTML = `
+            <span class="taskName">${esc(task.name)}</span>
+            <button class="ghost taskRunBtn" title="Run ${esc(task.command)}">▶ Run</button>
+          `;
+          const runBtn = item.querySelector('.taskRunBtn');
+          runBtn.onclick = (e) => {
+            e.stopPropagation();
+            openPanel('term');
+            const tab = getActiveTermTab();
+            tab.out += `\n[Running task: ${task.command}]\n`;
+            termAppend(`\n[Running task: ${task.command}]\n`, 'meta');
+            $('termIn').value = task.command;
+            const ev = new KeyboardEvent('keydown', { key: 'Enter', bubbles: true });
+            $('termIn').dispatchEvent(ev);
+          };
+          listEl.appendChild(item);
+        }
+      } catch (e) {
+        listEl.innerHTML = `<div style="font-size:10.5px;color:var(--warn);padding:4px">Error: ${esc(e.message)}</div>`;
+      }
+    }
+    $('tasksRefreshBtn')?.addEventListener('click', () => refreshTasks());
+    setTimeout(() => refreshTasks(), 800);
+
+    // ---------- 8. Monaco Sticky Scroll & Minimap Footer Toggles ----------
+    let minimapOn = store.get('minimap', '0') === '1';
+    $('toggleMinimap')?.addEventListener('click', () => {
+      minimapOn = !minimapOn;
+      store.set('minimap', minimapOn ? '1' : '0');
+      $('toggleMinimap').textContent = minimapOn ? 'Minimap: On' : 'Minimap: Off';
+      if (editor) editor.updateOptions({ minimap: { enabled: minimapOn } });
+      if (editor2Instance) editor2Instance.updateOptions({ minimap: { enabled: minimapOn } });
+    });
+    if (minimapOn && $('toggleMinimap')) $('toggleMinimap').textContent = 'Minimap: On';
+
+    let stickyScrollOn = true;
+    $('toggleStickyScroll')?.addEventListener('click', () => {
+      stickyScrollOn = !stickyScrollOn;
+      $('toggleStickyScroll').textContent = stickyScrollOn ? 'Sticky: On' : 'Sticky: Off';
+      if (editor) editor.updateOptions({ stickyScroll: { enabled: stickyScrollOn } });
+      if (editor2Instance) editor2Instance.updateOptions({ stickyScroll: { enabled: stickyScrollOn } });
+    });
+
+    // ---------- 9. Dedicated In-Editor Find & Replace Bar ----------
+    let findMatches = [], currentFindIndex = -1;
+    let findCase = false, findWord = false, findRegex = false;
+
+    function getActiveMonaco() {
+      return (activeEditorId === 'editor2' && editor2Instance) ? editor2Instance : editor;
+    }
+
+    function openFindBar(showReplace = false) {
+      const bar = $('findBar');
+      if (!bar) return;
+      bar.hidden = false;
+      const r2 = $('findRow2');
+      if (r2) {
+        r2.hidden = !showReplace;
+        $('findToggleReplaceBtn').textContent = showReplace ? '▾' : '▸';
+      }
+      const ed = getActiveMonaco();
+      if (ed) {
+        const sel = ed.getModel()?.getValueInRange(ed.getSelection());
+        if (sel && sel.length <= 100 && !sel.includes('\n')) {
+          $('findInput').value = sel;
+        }
+      }
+      if (showReplace) {
+        $('replaceInput').focus();
+        $('replaceInput').select();
+      } else {
+        $('findInput').focus();
+        $('findInput').select();
+      }
+      updateFindMatches();
+    }
+
+    function closeFindBar() {
+      const bar = $('findBar');
+      if (bar) bar.hidden = true;
+      findMatches = [];
+      currentFindIndex = -1;
+      const ed = getActiveMonaco();
+      if (ed) ed.focus();
+    }
+
+    function updateFindMatches() {
+      const query = $('findInput').value;
+      const countEl = $('findCount');
+      const ed = getActiveMonaco();
+      if (!ed || !ed.getModel() || !query) {
+        findMatches = [];
+        currentFindIndex = -1;
+        if (countEl) countEl.textContent = '0 results';
+        return;
+      }
+      try {
+        findMatches = ed.getModel().findMatches(query, true, findRegex, findCase, findWord ? ' ()[]{}<>,;:\'"' : null, true);
+        if (!findMatches.length) {
+          currentFindIndex = -1;
+          if (countEl) countEl.textContent = 'No results';
+          return;
+        }
+        if (currentFindIndex < 0 || currentFindIndex >= findMatches.length) currentFindIndex = 0;
+        if (countEl) countEl.textContent = `${currentFindIndex + 1} of ${findMatches.length}`;
+        jumpToFindMatch(currentFindIndex);
+      } catch (e) {
+        if (countEl) countEl.textContent = 'Invalid regex';
+      }
+    }
+
+    function jumpToFindMatch(index) {
+      if (index < 0 || index >= findMatches.length) return;
+      const match = findMatches[index];
+      const ed = getActiveMonaco();
+      if (!ed) return;
+      ed.setSelection(match.range);
+      ed.revealRangeInCenter(match.range);
+      $('findCount').textContent = `${index + 1} of ${findMatches.length}`;
+    }
+
+    $('findInput')?.addEventListener('input', () => updateFindMatches());
+    $('findInput')?.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        if (e.shiftKey) {
+          if (findMatches.length) {
+            currentFindIndex = (currentFindIndex - 1 + findMatches.length) % findMatches.length;
+            jumpToFindMatch(currentFindIndex);
+          }
+        } else {
+          if (findMatches.length) {
+            currentFindIndex = (currentFindIndex + 1) % findMatches.length;
+            jumpToFindMatch(currentFindIndex);
+          }
+        }
+      } else if (e.key === 'Escape') {
+        closeFindBar();
+      }
+    });
+
+    $('findNextBtn')?.addEventListener('click', () => {
+      if (!findMatches.length) return;
+      currentFindIndex = (currentFindIndex + 1) % findMatches.length;
+      jumpToFindMatch(currentFindIndex);
+    });
+
+    $('findPrevBtn')?.addEventListener('click', () => {
+      if (!findMatches.length) return;
+      currentFindIndex = (currentFindIndex - 1 + findMatches.length) % findMatches.length;
+      jumpToFindMatch(currentFindIndex);
+    });
+
+    $('findCloseBtn')?.addEventListener('click', () => closeFindBar());
+
+    $('findToggleReplaceBtn')?.addEventListener('click', () => {
+      const r2 = $('findRow2');
+      if (r2) {
+        r2.hidden = !r2.hidden;
+        $('findToggleReplaceBtn').textContent = r2.hidden ? '▸' : '▾';
+        if (!r2.hidden) $('replaceInput').focus();
+      }
+    });
+
+    $('findCaseBtn')?.addEventListener('click', () => {
+      findCase = !findCase;
+      $('findCaseBtn').classList.toggle('on', findCase);
+      updateFindMatches();
+    });
+
+    $('findWordBtn')?.addEventListener('click', () => {
+      findWord = !findWord;
+      $('findWordBtn').classList.toggle('on', findWord);
+      updateFindMatches();
+    });
+
+    $('findRegexBtn')?.addEventListener('click', () => {
+      findRegex = !findRegex;
+      $('findRegexBtn').classList.toggle('on', findRegex);
+      updateFindMatches();
+    });
+
+    $('replaceBtn')?.addEventListener('click', () => {
+      const ed = getActiveMonaco();
+      if (!ed || !ed.getModel() || !findMatches.length || currentFindIndex < 0) return;
+      const match = findMatches[currentFindIndex];
+      const rep = $('replaceInput').value;
+      ed.executeEdits('find-replace', [{ range: match.range, text: rep, forceMoveMarkers: true }]);
+      updateFindMatches();
+    });
+
+    $('replaceAllBtn')?.addEventListener('click', () => {
+      const ed = getActiveMonaco();
+      if (!ed || !ed.getModel() || !findMatches.length) return;
+      const rep = $('replaceInput').value;
+      const edits = findMatches.map(m => ({ range: m.range, text: rep, forceMoveMarkers: true }));
+      ed.executeEdits('find-replace-all', edits);
+      updateFindMatches();
+    });
+
+    $('replaceInput')?.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        $('replaceBtn')?.click();
+      } else if (e.key === 'Escape') {
+        closeFindBar();
+      }
+    });
+
+    // ---------- 10. AI Voice / Speech Dictation Mode (Ctrl+M) ----------
+    let speechRecognition = null;
+    let isListening = false;
+    let voiceTargetInput = null;
+
+    function initVoiceDictation() {
+      const SpeechClass = window.SpeechRecognition || window.webkitSpeechRecognition;
+      if (!SpeechClass) {
+        const msg = 'Speech Recognition is not available in this environment.';
+        $('voiceDictationBtn')?.setAttribute('title', msg);
+        $('composerVoiceBtn')?.setAttribute('title', msg);
+        return;
+      }
+
+      speechRecognition = new SpeechClass();
+      speechRecognition.continuous = true;
+      speechRecognition.interimResults = true;
+      speechRecognition.lang = 'en-US';
+
+      speechRecognition.onstart = () => {
+        isListening = true;
+        $('voiceDictationBtn')?.classList.add('listening');
+        $('composerVoiceBtn')?.classList.add('listening');
+      };
+
+      speechRecognition.onresult = (event) => {
+        let transcript = '';
+        for (let i = event.resultIndex; i < event.results.length; ++i) {
+          if (event.results[i].isFinal) {
+            transcript += event.results[i][0].transcript;
+          }
+        }
+        if (transcript) {
+          const target = voiceTargetInput || $('prompt');
+          if (target) {
+            target.value = (target.value ? target.value.trim() + ' ' : '') + transcript.trim();
+            target.dispatchEvent(new Event('input', { bubbles: true }));
+            target.focus();
+          }
+        }
+      };
+
+      speechRecognition.onerror = () => {
+        stopVoiceDictation();
+      };
+
+      speechRecognition.onend = () => {
+        stopVoiceDictation();
+      };
+    }
+
+    function toggleVoiceDictation(target) {
+      if (!speechRecognition) initVoiceDictation();
+      if (!speechRecognition) {
+        bubble('note', 'Voice dictation requires microphone access in Chrome/Electron.');
+        return;
+      }
+      voiceTargetInput = target || $('prompt');
+      if (isListening) {
+        stopVoiceDictation();
+      } else {
+        try {
+          speechRecognition.start();
+        } catch (e) {
+          stopVoiceDictation();
+        }
+      }
+    }
+
+    function stopVoiceDictation() {
+      isListening = false;
+      try { speechRecognition?.stop(); } catch {}
+      $('voiceDictationBtn')?.classList.remove('listening');
+      $('composerVoiceBtn')?.classList.remove('listening');
+    }
+
+    $('voiceDictationBtn')?.addEventListener('click', () => toggleVoiceDictation($('prompt')));
+    $('composerVoiceBtn')?.addEventListener('click', () => toggleVoiceDictation($('composerPrompt')));
+
     initAuth();
   </script>
 
@@ -5654,9 +6360,12 @@
       </div>
       <div id="composerFoot">
         <div style="font-size:11px;color:var(--dim)">
-          <kbd>Ctrl+Enter</kbd> submit · <kbd>Ctrl+I</kbd> toggle · <kbd>@</kbd> context
+          <kbd>Ctrl+Enter</kbd> submit · <kbd>Ctrl+I</kbd> toggle · <kbd>@</kbd> context · <kbd>Ctrl+M</kbd> mic
         </div>
-        <button id="composerSubmit">Compose Changes</button>
+        <div style="display:flex;gap:8px">
+          <button class="ghost" id="composerVoiceBtn" title="Voice Dictation (Ctrl+M)">🎙 Voice</button>
+          <button id="composerSubmit">Compose Changes</button>
+        </div>
       </div>
     </div>
   </div>

@@ -385,6 +385,78 @@ ipcMain.handle('project-rules', async () => {
   return { path: null, content: '' };
 });
 
+// ---- project tasks scanner ----
+ipcMain.handle('list-project-tasks', async () => {
+  if (!root) return [];
+  const tasks = [];
+  // 1. package.json scripts
+  try {
+    const pkgPath = await safe('package.json');
+    const raw = await fs.readFile(pkgPath, 'utf8');
+    const pkg = JSON.parse(raw);
+    if (pkg.scripts && typeof pkg.scripts === 'object') {
+      for (const [name, cmd] of Object.entries(pkg.scripts)) {
+        tasks.push({
+          name: `npm: ${name}`,
+          command: `npm run ${name}`,
+          detail: String(cmd),
+          source: 'package.json',
+          type: 'npm'
+        });
+      }
+    }
+  } catch {}
+
+  // 2. Makefile targets
+  try {
+    const makePath = await safe('Makefile');
+    const raw = await fs.readFile(makePath, 'utf8');
+    const lines = raw.split(/\r?\n/);
+    for (const line of lines) {
+      const m = line.match(/^([a-zA-Z0-9_\-]+)\s*:/);
+      if (m && !m[1].startsWith('.') && !m[1].includes('=')) {
+        tasks.push({
+          name: `make: ${m[1]}`,
+          command: `make ${m[1]}`,
+          detail: `Run target ${m[1]}`,
+          source: 'Makefile',
+          type: 'make'
+        });
+      }
+    }
+  } catch {}
+
+  // 3. Cargo.toml
+  try {
+    const cargoPath = await safe('Cargo.toml');
+    await fs.access(cargoPath);
+    tasks.push(
+      { name: 'cargo: check', command: 'cargo check', detail: 'Check Rust package for errors', source: 'Cargo.toml', type: 'cargo' },
+      { name: 'cargo: build', command: 'cargo build', detail: 'Compile Rust package', source: 'Cargo.toml', type: 'cargo' },
+      { name: 'cargo: test', command: 'cargo test', detail: 'Run Rust tests', source: 'Cargo.toml', type: 'cargo' }
+    );
+  } catch {}
+
+  // 4. pyproject.toml / requirements.txt
+  try {
+    const pyPath = await safe('pyproject.toml');
+    await fs.access(pyPath);
+    tasks.push(
+      { name: 'pytest', command: 'pytest', detail: 'Run Python tests', source: 'pyproject.toml', type: 'python' }
+    );
+  } catch {
+    try {
+      const reqPath = await safe('requirements.txt');
+      await fs.access(reqPath);
+      tasks.push(
+        { name: 'pip: install', command: 'pip install -r requirements.txt', detail: 'Install dependencies', source: 'requirements.txt', type: 'python' }
+      );
+    } catch {}
+  }
+
+  return tasks;
+});
+
 // ---- git ----
 async function gitRun(args, opts = {}) {
   if (!root) throw new Error('Open a folder first.');
