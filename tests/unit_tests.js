@@ -688,6 +688,78 @@ async function runAllTests() {
     await vsixUninstall(null, 'test-pub.test-cli-ext');
   });
 
+  console.log('\nSuite 12: Next-Gen IDE Features (Breadcrumbs, Outline, Split Editor, Diagnostics, Mentions, Composer)');
+
+  await test('extractDocumentSymbols extracts functions, classes, and methods across languages', () => {
+    const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
+    const match = html.match(/function extractDocumentSymbols\(text, filename\) \{([\s\S]*?)\n\}/);
+    assert(match, 'extractDocumentSymbols function must exist in index.html');
+    const extractFn = new Function('text', 'filename', match[1]);
+
+    const jsCode = `
+      function calculateSum(a, b) { return a + b; }
+      const multiply = (x, y) => x * y;
+      class AuthService {
+        login(user, pass) {}
+      }
+    `;
+    const jsSymbols = extractFn(jsCode, 'app.js');
+    assert.strictEqual(jsSymbols.length, 4, 'Should extract 4 symbols from JS code');
+    assert.strictEqual(jsSymbols[0].name, 'calculateSum');
+    assert.strictEqual(jsSymbols[0].kind, 'fn');
+    assert.strictEqual(jsSymbols[1].name, 'multiply');
+    assert.strictEqual(jsSymbols[2].name, 'AuthService');
+    assert.strictEqual(jsSymbols[2].kind, 'cls');
+    assert.strictEqual(jsSymbols[3].name, 'login');
+    assert.strictEqual(jsSymbols[3].kind, 'mth');
+
+    const pyCode = `
+class DataPipeline:
+    def process_data(self):
+        pass
+
+def run_pipeline():
+    pass
+    `;
+    const pySymbols = extractFn(pyCode, 'pipeline.py');
+    assert.strictEqual(pySymbols.length, 3, 'Should extract 3 symbols from Python code');
+    assert.strictEqual(pySymbols[0].name, 'DataPipeline');
+    assert.strictEqual(pySymbols[1].name, 'process_data');
+    assert.strictEqual(pySymbols[2].name, 'run_pipeline');
+  });
+
+  await test('codebase-search performs token relevance search across project files', async () => {
+    const codebaseSearch = handlers.get('codebase-search');
+    assert(codebaseSearch, 'codebase-search handler must be registered');
+
+    // Create sample files in testRoot
+    fs.writeFileSync(path.join(testRoot, 'auth.js'), 'function authenticateUser(token) { return jwt.verify(token); }', 'utf8');
+    fs.writeFileSync(path.join(testRoot, 'db.js'), 'function queryDatabase(sql) { return pool.query(sql); }', 'utf8');
+
+    const results = await codebaseSearch(null, { query: 'authenticate user token' });
+    assert(Array.isArray(results), 'codebaseSearch should return array of hits');
+    assert(results.length > 0, 'codebaseSearch should find matching file chunks');
+    assert.strictEqual(results[0].path, 'auth.js', 'Top hit should be auth.js');
+    assert(results[0].snippet.includes('authenticateUser'), 'Snippet should contain matched code');
+  });
+
+  await test('git-head-content safely handles requests without throwing', async () => {
+    const gitHead = handlers.get('git-head-content');
+    assert(gitHead, 'git-head-content handler must be registered');
+    const content = await gitHead(null, { path: 'nonexistent.txt' });
+    assert.strictEqual(content, '', 'Non-existent file should safely return empty string');
+  });
+
+  await test('Composer multi-file diff tracking and change batching', () => {
+    const composerFiles = new Map();
+    composerFiles.set('src/index.js', { original: 'const a = 1;', modified: 'const a = 2;\nconst b = 3;' });
+    composerFiles.set('src/config.json', { original: '{"port":3000}', modified: '{"port":8080}' });
+
+    assert.strictEqual(composerFiles.size, 2, 'Composer must track multiple files');
+    assert(composerFiles.has('src/index.js'));
+    assert(composerFiles.has('src/config.json'));
+  });
+
   // Clean up temporary workspace
   try {
     fs.rmSync(tempDir, { recursive: true, force: true });

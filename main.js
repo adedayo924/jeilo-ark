@@ -317,6 +317,60 @@ ipcMain.handle('search-files', async (_e, { query, caseSensitive = false, regex 
   return { results, truncated };
 });
 
+ipcMain.handle('codebase-search', async (_e, { query, limit = 6 } = {}) => {
+  const q = String(query || '').trim().toLowerCase();
+  if (!q) return [];
+  const base = await safe('.');
+  const files = await listAllFiles();
+  const tokens = q.split(/\s+/).filter((t) => t.length > 2);
+  const results = [];
+
+  for (const rel of files) {
+    if (['.png', '.jpg', '.jpeg', '.gif', '.ico', '.pdf', '.zip', '.exe', '.vsix', '.node'].some((ext) => rel.endsWith(ext))) continue;
+    try {
+      const full = path.join(base, rel);
+      const st = await fs.stat(full);
+      if (st.size > 512 * 1024) continue;
+      const text = await fs.readFile(full, 'utf8');
+      if (text.includes('\u0000')) continue;
+
+      let score = 0;
+      const relLower = rel.toLowerCase();
+      for (const t of tokens) {
+        if (relLower.includes(t)) score += 10;
+      }
+
+      const lines = text.split(/\r?\n/);
+      let chunkStart = 0;
+      while (chunkStart < lines.length) {
+        const chunkEnd = Math.min(chunkStart + 35, lines.length);
+        const chunkText = lines.slice(chunkStart, chunkEnd).join('\n');
+        const chunkLower = chunkText.toLowerCase();
+
+        let chunkScore = score;
+        for (const t of tokens) {
+          const count = (chunkLower.match(new RegExp(escapeRe(t), 'g')) || []).length;
+          chunkScore += Math.min(count, 5) * 3;
+        }
+
+        if (chunkScore > 3) {
+          results.push({
+            path: rel,
+            startLine: chunkStart + 1,
+            endLine: chunkEnd,
+            snippet: chunkText,
+            score: chunkScore
+          });
+        }
+        chunkStart += 25;
+      }
+    } catch {}
+  }
+
+  results.sort((a, b) => b.score - a.score);
+  return results.slice(0, limit);
+});
+
 // ---- project rules ----
 const RULE_FILES = ['JEILO.md', 'AGENTS.md', 'CLAUDE.md', '.jeilorules', '.cursorrules'];
 ipcMain.handle('project-rules', async () => {
@@ -379,6 +433,15 @@ ipcMain.handle('git-diff', async (_e, { cached = false, path: p } = {}) => {
     try { const text = await fs.readFile(await safe(p), 'utf8'); out = text.split(/\r?\n/).map((l) => '+ ' + l).join('\n'); } catch {}
   }
   return out.slice(0, 200000);
+});
+ipcMain.handle('git-head-content', async (_e, { path: p } = {}) => {
+  if (!root) throw new Error('Open a folder first.');
+  if (!p) return '';
+  try {
+    return await git(['show', 'HEAD:' + p.replace(/\\/g, '/')]);
+  } catch {
+    return '';
+  }
 });
 ipcMain.handle('git-stage', async (_e, { paths } = {}) => {
   if (!root) throw new Error('Open a folder first.');
