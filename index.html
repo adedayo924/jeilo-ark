@@ -1956,6 +1956,10 @@
       backdrop-filter: blur(2px);
     }
 
+    #composerOverlay[hidden] {
+      display: none !important;
+    }
+
     #composerModal {
       width: min(740px, 94%);
       max-height: 86vh;
@@ -2246,7 +2250,7 @@
       <nav id="actBar" aria-label="Activity Bar">
         <button class="actBtn on" data-view="files" title="Explorer (Ctrl+Shift+E)">
           <svg viewBox="0 0 24 24">
-            <path d="M4 4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8L10 4H4z" />
+            <path d="M4 4v16h11v-2H6V4h8l4 4v3h2V7l-5-5H4zm6 6v12h10V10H10zm8 10h-6v-8h6v8z" />
           </svg>
         </button>
         <button class="actBtn" data-view="search" title="Search in Files (Ctrl+Shift+F)">
@@ -2345,7 +2349,7 @@
               style="color:var(--accent);font-weight:600;font-size:11px">✨ Composer</button>
           </div>
         </div>
-        <div id="breadcrumbs"><span class="bc-seg bc-root">📁 project</span></div>
+        <div id="breadcrumbs"><span class="bc-seg bc-root"><span class="file-ico"><svg viewBox="0 0 16 16"><path d="M1.5 3A1.5 1.5 0 0 1 3 1.5h3.88a1.5 1.5 0 0 1 1.06.44l1.12 1.12A1.5 1.5 0 0 0 10.12 3.5H13A1.5 1.5 0 0 1 14.5 5v7.5A1.5 1.5 0 0 1 13 14H3a1.5 1.5 0 0 1-1.5-1.5V3z" fill="#dcb67a"/></svg></span> <span id="bcProjName" style="margin-left:4px">project</span></span></div>
         <div id="editorWrap">
           <div id="editorContainer">
             <div id="editorPane1" class="editorPane">
@@ -2537,6 +2541,57 @@
     <div class="btns"><button id="keyRemove" class="sec">Remove</button><button id="keyCancel"
         class="sec">Cancel</button><button id="keySave">Save</button></div>
   </dialog>
+
+  <div id="mentionMenu" hidden>
+    <div class="mentionItem on" data-type="file"><span class="mico">📄</span> <b>@file</b> <span>Pick a file from
+        workspace</span></div>
+    <div class="mentionItem" data-type="folder"><span class="mico">📁</span> <b>@folder</b> <span>Attach folder
+        contents</span></div>
+    <div class="mentionItem" data-type="git"><span class="mico">🌿</span> <b>@git</b> <span>Attach active git
+        diff</span></div>
+    <div class="mentionItem" data-type="codebase"><span class="mico">🔍</span> <b>@codebase</b> <span>Search entire
+        codebase</span></div>
+    <div class="mentionItem" data-type="problems"><span class="mico">⚠️</span> <b>@problems</b> <span>Attach workspace
+        diagnostics</span></div>
+  </div>
+
+  <div id="composerOverlay" hidden>
+    <div id="composerModal">
+      <div id="composerHead">
+        <div style="display:flex;align-items:center;gap:8px">
+          <span style="color:var(--accent);font-size:16px">✨</span>
+          <b style="font-size:13px">Composer</b>
+          <span style="font-size:11px;color:var(--dim)">Multi-File AI Builder</span>
+        </div>
+        <button class="ghost" id="composerClose" title="Close (Esc)">✕</button>
+      </div>
+      <div id="composerBody">
+        <textarea id="composerPrompt"
+          placeholder="What would you like to build or change across files? (Type @ to mention files, git, or codebase)..."></textarea>
+        <div id="composerFilesTray" hidden>
+          <div id="composerFilesHead">
+            <span>Affected Files (<span id="composerFilesCount">0</span>)</span>
+            <div style="display:flex;gap:6px">
+              <button class="ghost" id="composerRejectAll">✕ Reject All (Esc)</button>
+              <button id="composerAcceptAll" style="background:var(--ok);color:#000;font-weight:600">✓ Accept All
+                (Ctrl+Enter)</button>
+            </div>
+          </div>
+          <div id="composerFilesList"></div>
+        </div>
+      </div>
+      <div id="composerFoot">
+        <div style="font-size:11px;color:var(--dim)">
+          <kbd>Ctrl+Enter</kbd> submit · <kbd>Ctrl+I</kbd> toggle · <kbd>@</kbd> context · <kbd>Ctrl+M</kbd> mic
+        </div>
+        <div style="display:flex;gap:8px">
+          <button class="ghost" id="composerVoiceBtn" title="Voice Dictation (Ctrl+M)">🎙 Voice</button>
+          <button id="composerSubmit">Compose Changes</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <script src="node_modules/monaco-editor/min/vs/loader.js"></script>
   <script>
     const $ = (id) => document.getElementById(id);
@@ -2647,7 +2702,7 @@
       $('fileInfo').onclick = () => goToLine();
       editor.addAction({ id: 'jeilo.addSelection', label: 'Add selection to chat', keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyMod.Shift | monaco.KeyCode.KeyA], run: () => addSelectionToChat() });
       editor.addAction({ id: 'jeilo.inlineAi', label: 'Inline AI Edit (Ctrl+K)', keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyK], run: () => showInlineAi() });
-      editor.addAction({ id: 'jeilo.composer', label: 'Open AI Composer (Ctrl+I)', keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyI], run: () => openComposer() });
+      editor.addAction({ id: 'jeilo.composer', label: 'Toggle AI Composer (Ctrl+I)', keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyI], run: () => toggleComposer() });
       editor.addAction({ id: 'jeilo.splitEditor', label: 'Split Editor Side-by-Side (Ctrl+\\)', keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyCode.Backslash], run: () => toggleSplitEditor() });
       editor.addAction({ id: 'jeilo.find', label: 'Find in File (Ctrl+F)', keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyF], run: () => openFindBar(false) });
       editor.addAction({ id: 'jeilo.replace', label: 'Replace in File (Ctrl+H)', keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyH], run: () => openFindBar(true) });
@@ -2822,7 +2877,8 @@ function fileIcon(name, isDir, isOpen) {
       $('tabs').innerHTML = '';
       for (const [rel, t] of tabs) {
         const tab = el('div', 'tab' + (rel === current ? ' on' : ''));
-        tab.innerHTML = `${fileIcon(rel.split('/').pop(), false, false)}<span>${esc(rel.split('/').pop())}</span>${t.dirty ? '<span class="mod" title="Unsaved"></span>' : ''}<span class="x" title="Close">✕</span>`;
+        const fname = rel.replace(/\\/g, '/').split('/').pop();
+        tab.innerHTML = `${fileIcon(fname, false, false)}<span>${esc(fname)}</span>${t.dirty ? '<span class="mod" title="Unsaved"></span>' : ''}<span class="x" title="Close">✕</span>`;
         tab.title = rel; tab.onclick = () => activate(rel);
         tab.querySelector('.x').onclick = (e) => { e.stopPropagation(); closeTab(rel); };
         $('tabs').appendChild(tab);
@@ -2842,7 +2898,7 @@ function fileIcon(name, isDir, isOpen) {
         bubble('err', `Could not open ${rel}: ` + e.message.replace(/^Error invoking remote method '[\w-]+': (Error: )?/, ''));
       }
     }
-    function activate(rel) { const t = tabs.get(rel); if (!t) return; current = rel; if (editor) { editor.setModel(t.model); editor.focus(); } $('empty').hidden = true; renderTabs(); markActive(); }
+    function activate(rel) { const t = tabs.get(rel); if (!t) return; current = rel; if (editor) { editor.setModel(t.model); editor.focus(); } $('empty').hidden = true; renderTabs(); markActive(); if (typeof updateBreadcrumbs === 'function') updateBreadcrumbs(); }
     function closeTab(rel) {
       const t = tabs.get(rel); if (!t) return;
       if (t.dirty && !confirm(`Discard unsaved changes to ${rel}?`)) return;
@@ -2853,14 +2909,14 @@ function fileIcon(name, isDir, isOpen) {
         if (next && tabs.has(next)) activate(next);
         else { current = null; if (editor) editor.setModel(null); $('empty').hidden = false; $('fileInfo').textContent = 'Ctrl+S save'; }
       }
-      renderTabs(); markActive();
+      renderTabs(); markActive(); if (typeof updateBreadcrumbs === 'function') updateBreadcrumbs();
     }
     function disposeAllTabs() {
       for (const t of tabs.values()) t.model.dispose();
       tabs.clear(); current = null;
       if (editor) editor.setModel(null);
       $('empty').hidden = false; $('fileInfo').textContent = 'Ctrl+S save';
-      renderTabs(); markActive();
+      renderTabs(); markActive(); if (typeof updateBreadcrumbs === 'function') updateBreadcrumbs();
     }
     async function save() {
       if (!current) return;
@@ -3103,6 +3159,7 @@ function fileIcon(name, isDir, isOpen) {
       if (r) {
         root = r;
         disposeAllTabs(); $('rootLabel').textContent = r; expanded.clear(); loadChat(r);
+        if (typeof updateBreadcrumbs === 'function') updateBreadcrumbs();
         quickFiles = null; rulesText = ''; rulesPath = null; $('rulesTag').hidden = true;
         ghNoteText = ''; githubState.remote = null; if ($('ghToken')) $('ghToken').value = ''; if ($('ghRemote')) $('ghRemote').value = '';
         $('search').value = ''; $('searchResults').innerHTML = ''; setSideView('files');
@@ -5445,7 +5502,7 @@ function lineDiff(o, n) {
           }
         }
       }
-      if (e.ctrlKey && !e.shiftKey && e.key.toLowerCase() === 'i') { e.preventDefault(); openComposer(); return; }
+      if (e.ctrlKey && !e.shiftKey && e.key.toLowerCase() === 'i') { e.preventDefault(); toggleComposer(); return; }
       if (e.ctrlKey && e.key === '\\') { e.preventDefault(); toggleSplitEditor(); return; }
       if (e.ctrlKey && !e.shiftKey && e.key.toLowerCase() === 'k') { e.preventDefault(); showInlineAi(); return; }
       if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 'a') { e.preventDefault(); addSelectionToChat(); return; }
@@ -5459,22 +5516,30 @@ function lineDiff(o, n) {
     // =============================================================
 
     // ---------- 1. Breadcrumbs Bar ----------
+    function getProjectFolderName() {
+      if (!root) return 'project';
+      const parts = root.replace(/\\/g, '/').split('/').filter(Boolean);
+      return parts.length ? parts[parts.length - 1] : 'project';
+    }
+
     function updateBreadcrumbs() {
       const bc = $('breadcrumbs');
       if (!bc) return;
       bc.innerHTML = '';
-      if (!current) {
-        bc.innerHTML = '<span class="bc-seg bc-root">📁 project</span>';
-        return;
-      }
-      const parts = current.split('/');
-      const fname = parts.pop();
-      let accumulated = '';
+      const projName = getProjectFolderName();
+      const folderSvg = fileIcon('', true, false);
 
       const rootSeg = el('span', 'bc-seg bc-root');
-      rootSeg.innerHTML = '📁 ' + esc(folderName || 'project');
+      rootSeg.innerHTML = `${folderSvg} <span id="bcProjName" style="margin-left:4px">${esc(projName)}</span>`;
       rootSeg.onclick = () => setSideView('files');
       bc.appendChild(rootSeg);
+
+      if (!current) return;
+
+      const norm = current.replace(/\\/g, '/');
+      const parts = norm.split('/');
+      const fname = parts.pop();
+      let accumulated = '';
 
       for (const part of parts) {
         accumulated = accumulated ? accumulated + '/' + part : part;
@@ -5491,24 +5556,25 @@ function lineDiff(o, n) {
 
       const fileSep = el('span', 'bc-sep'); fileSep.textContent = '›'; bc.appendChild(fileSep);
       const fileSeg = el('span', 'bc-seg');
-      fileSeg.innerHTML = fileIcon(fname, false, false) + ' ' + esc(fname);
+      fileSeg.innerHTML = `${fileIcon(fname, false, false)} <span style="margin-left:4px">${esc(fname)}</span>`;
       fileSeg.style.fontWeight = '600';
       fileSeg.style.color = 'var(--text)';
       bc.appendChild(fileSeg);
 
       // If editor cursor is on a symbol, show it in breadcrumb
-      if (editor) {
-        const pos = editor.getPosition();
+      const ed = getActiveMonaco() || editor;
+      if (ed) {
+        const pos = ed.getPosition();
         if (pos && activeSymbols.length) {
           const curSym = [...activeSymbols].reverse().find(s => s.line <= pos.lineNumber);
           if (curSym) {
             const symSep = el('span', 'bc-sep'); symSep.textContent = '›'; bc.appendChild(symSep);
             const symSeg = el('span', 'bc-seg');
-            symSeg.innerHTML = `<span class="symKind ${curSym.kind}">${curSym.kind === 'fn' ? 'ƒ' : curSym.kind === 'cls' ? 'ℂ' : 'Ⓜ'}</span> ${esc(curSym.name)}`;
+            symSeg.innerHTML = `<span class="symKind ${curSym.kind}">${curSym.kind === 'fn' ? 'ƒ' : curSym.kind === 'cls' ? 'ℂ' : 'Ⓜ'}</span> <span style="margin-left:4px">${esc(curSym.name)}</span>`;
             symSeg.onclick = () => {
-              editor.revealLineInCenter(curSym.line);
-              editor.setPosition({ lineNumber: curSym.line, column: 1 });
-              editor.focus();
+              ed.revealLineInCenter(curSym.line);
+              ed.setPosition({ lineNumber: curSym.line, column: 1 });
+              ed.focus();
             };
             bc.appendChild(symSeg);
           }
@@ -5834,6 +5900,20 @@ function extractDocumentSymbols(text, filename) {
             return;
           }
         }
+        if (e.key === 'Escape') {
+          if (inp === $('composerPrompt')) {
+            e.preventDefault();
+            closeComposer();
+            return;
+          }
+        }
+        if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+          if (inp === $('composerPrompt')) {
+            e.preventDefault();
+            runComposer();
+            return;
+          }
+        }
         if (e.key === '@') {
           setTimeout(() => showMentionMenu(inp), 10);
         }
@@ -5848,18 +5928,42 @@ function extractDocumentSymbols(text, filename) {
       const ov = $('composerOverlay');
       if (!ov) return;
       ov.hidden = false;
-      $('composerPrompt').focus();
+      ov.style.display = 'flex';
+      $('composerPrompt')?.focus();
     }
 
     function closeComposer() {
       const ov = $('composerOverlay');
-      if (ov) ov.hidden = true;
+      if (ov) {
+        ov.hidden = true;
+        ov.style.display = 'none';
+      }
       hideMentionMenu();
-      editor?.focus();
+      if (typeof stopVoiceDictation === 'function') stopVoiceDictation();
+      const ed = getActiveMonaco() || editor;
+      ed?.focus();
     }
 
-    $('composerBtn')?.addEventListener('click', openComposer);
-    $('composerClose')?.addEventListener('click', closeComposer);
+    function toggleComposer() {
+      const ov = $('composerOverlay');
+      if (!ov) return;
+      if (ov.hidden || ov.style.display === 'none') {
+        openComposer();
+      } else {
+        closeComposer();
+      }
+    }
+
+    $('composerBtn')?.addEventListener('click', toggleComposer);
+    $('composerClose')?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      closeComposer();
+    });
+    $('composerOverlay')?.addEventListener('mousedown', (e) => {
+      if (e.target === $('composerOverlay')) {
+        closeComposer();
+      }
+    });
 
     async function runComposer() {
       if (composerBusy) return;
@@ -6280,8 +6384,9 @@ function extractDocumentSymbols(text, filename) {
         }
       };
 
-      speechRecognition.onerror = () => {
+      speechRecognition.onerror = (e) => {
         stopVoiceDictation();
+        bubble('note', 'Voice dictation: speech service unavailable or permission denied. Please type your query in the input box.');
       };
 
       speechRecognition.onend = () => {
@@ -6318,58 +6423,8 @@ function extractDocumentSymbols(text, filename) {
     $('composerVoiceBtn')?.addEventListener('click', () => toggleVoiceDictation($('composerPrompt')));
 
     initAuth();
+    if (typeof updateBreadcrumbs === 'function') updateBreadcrumbs();
   </script>
-
-  <div id="mentionMenu" hidden>
-    <div class="mentionItem on" data-type="file"><span class="mico">📄</span> <b>@file</b> <span>Pick a file from
-        workspace</span></div>
-    <div class="mentionItem" data-type="folder"><span class="mico">📁</span> <b>@folder</b> <span>Attach folder
-        contents</span></div>
-    <div class="mentionItem" data-type="git"><span class="mico">🌿</span> <b>@git</b> <span>Attach active git
-        diff</span></div>
-    <div class="mentionItem" data-type="codebase"><span class="mico">🔍</span> <b>@codebase</b> <span>Search entire
-        codebase</span></div>
-    <div class="mentionItem" data-type="problems"><span class="mico">⚠️</span> <b>@problems</b> <span>Attach workspace
-        diagnostics</span></div>
-  </div>
-
-  <div id="composerOverlay" hidden>
-    <div id="composerModal">
-      <div id="composerHead">
-        <div style="display:flex;align-items:center;gap:8px">
-          <span style="color:var(--accent);font-size:16px">✨</span>
-          <b style="font-size:13px">Composer</b>
-          <span style="font-size:11px;color:var(--dim)">Multi-File AI Builder</span>
-        </div>
-        <button class="ghost" id="composerClose" title="Close (Esc)">✕</button>
-      </div>
-      <div id="composerBody">
-        <textarea id="composerPrompt"
-          placeholder="What would you like to build or change across files? (Type @ to mention files, git, or codebase)..."></textarea>
-        <div id="composerFilesTray" hidden>
-          <div id="composerFilesHead">
-            <span>Affected Files (<span id="composerFilesCount">0</span>)</span>
-            <div style="display:flex;gap:6px">
-              <button class="ghost" id="composerRejectAll">✕ Reject All (Esc)</button>
-              <button id="composerAcceptAll" style="background:var(--ok);color:#000;font-weight:600">✓ Accept All
-                (Ctrl+Enter)</button>
-            </div>
-          </div>
-          <div id="composerFilesList"></div>
-        </div>
-      </div>
-      <div id="composerFoot">
-        <div style="font-size:11px;color:var(--dim)">
-          <kbd>Ctrl+Enter</kbd> submit · <kbd>Ctrl+I</kbd> toggle · <kbd>@</kbd> context · <kbd>Ctrl+M</kbd> mic
-        </div>
-        <div style="display:flex;gap:8px">
-          <button class="ghost" id="composerVoiceBtn" title="Voice Dictation (Ctrl+M)">🎙 Voice</button>
-          <button id="composerSubmit">Compose Changes</button>
-        </div>
-      </div>
-    </div>
-  </div>
-
 </body>
 
 </html>

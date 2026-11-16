@@ -82,8 +82,11 @@ async function runAllTests() {
         },
         safeStorage: {
           isEncryptionAvailable: () => true,
+          isAsyncEncryptionAvailable: async () => true,
           encryptString: (s) => Buffer.from(s),
+          encryptStringAsync: async (s) => Buffer.from(s),
           decryptString: (b) => b.toString(),
+          decryptStringAsync: async (b) => b.toString(),
         },
         net: {},
         shell: { openExternal: () => {} }
@@ -859,6 +862,27 @@ def run_pipeline():
     assert(html.includes('id="composerVoiceBtn"'), 'Composer voice dictation button must exist');
     assert(html.includes('toggleVoiceDictation'), 'toggleVoiceDictation function must exist');
     assert(html.includes('webkitSpeechRecognition') || html.includes('SpeechRecognition'), 'Speech recognition API referenced');
+  });
+
+  await test('Composer overlay and mention menu are placed in DOM before script tag', () => {
+    const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
+    const composerIdx = html.indexOf('id="composerOverlay"');
+    const mentionIdx = html.indexOf('id="mentionMenu"');
+    const firstScriptIdx = html.indexOf('<script src="node_modules/monaco-editor/min/vs/loader.js">');
+
+    assert(composerIdx > 0 && composerIdx < firstScriptIdx, '#composerOverlay must be declared before <script>');
+    assert(mentionIdx > 0 && mentionIdx < firstScriptIdx, '#mentionMenu must be declared before <script>');
+    assert(html.includes('toggleComposer'), 'toggleComposer function must be implemented');
+    assert(html.includes('closeComposer'), 'closeComposer function must be implemented');
+    assert(html.includes('#composerOverlay[hidden]'), 'CSS must enforce display: none !important for [hidden]');
+  });
+
+  await test('Breadcrumbs root renders crisp SVG folder icon and dynamic project name', () => {
+    const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
+    assert(html.includes('getProjectFolderName'), 'getProjectFolderName helper must exist');
+    assert(html.includes('id="bcProjName"'), '#bcProjName element must exist in breadcrumbs markup');
+    assert(!html.includes('rootSeg.innerHTML = \'📁 \''), 'Breadcrumb root must not use raw emoji directory icon');
+    assert(html.includes('function updateBreadcrumbs'), 'updateBreadcrumbs function must exist');
   });
 
   // Clean up temporary workspace

@@ -1,4 +1,7 @@
-const { app, BrowserWindow, ipcMain, dialog, net, safeStorage, shell } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, safeStorage, shell } = require('electron');
+if (app && app.commandLine) {
+  app.commandLine.appendSwitch('log-level', '3');
+}
 const path = require('path');
 const fs = require('fs/promises');
 const fsSync = require('fs');
@@ -1570,16 +1573,38 @@ ipcMain.handle('open-external', async (_e, url) => {
 const NVIDIA_URL = 'https://integrate.api.nvidia.com/v1';
 const keys = {};
 const keyFile = () => path.join(app.getPath('userData'), 'keys.json');
+
+async function isEncryptionAvail() {
+  if (typeof safeStorage.isAsyncEncryptionAvailable === 'function') {
+    try { return await safeStorage.isAsyncEncryptionAvailable(); } catch {}
+  }
+  try { return safeStorage.isEncryptionAvailable(); } catch { return false; }
+}
+
+async function decryptStr(buf) {
+  if (typeof safeStorage.decryptStringAsync === 'function') {
+    return await safeStorage.decryptStringAsync(buf);
+  }
+  return safeStorage.decryptString(buf);
+}
+
+async function encryptStr(plain) {
+  if (typeof safeStorage.encryptStringAsync === 'function') {
+    return await safeStorage.encryptStringAsync(plain);
+  }
+  return safeStorage.encryptString(plain);
+}
+
 async function loadKeys() {
   try {
     const raw = JSON.parse(await fs.readFile(keyFile(), 'utf8'));
-    for (const [p, v] of Object.entries(raw)) keys[p] = safeStorage.decryptString(Buffer.from(v, 'base64'));
+    for (const [p, v] of Object.entries(raw)) keys[p] = await decryptStr(Buffer.from(v, 'base64'));
   } catch { /* no saved keys yet */ }
 }
 async function saveKeys() {
-  if (!safeStorage.isEncryptionAvailable()) return false;
+  if (!(await isEncryptionAvail())) return false;
   const out = {};
-  for (const [p, k] of Object.entries(keys)) out[p] = safeStorage.encryptString(k).toString('base64');
+  for (const [p, k] of Object.entries(keys)) out[p] = (await encryptStr(k)).toString('base64');
   await fs.writeFile(keyFile(), JSON.stringify(out), { mode: 0o600 });
   return true;
 }
@@ -1587,14 +1612,14 @@ const authHeaders = (provider) => (keys[provider] ? { Authorization: 'Bearer ' +
 // The NVIDIA key is only ever sent to NVIDIA's own endpoint.
 const resolveUrl = (provider, baseUrl) => (provider === 'nvidia' ? NVIDIA_URL : String(baseUrl || '')).replace(/\/$/, '');
 
-ipcMain.handle('key-status', (_e, provider) => ({ has: !!keys[provider], secure: safeStorage.isEncryptionAvailable() }));
+ipcMain.handle('key-status', async (_e, provider) => ({ has: !!keys[provider], secure: await isEncryptionAvail() }));
 ipcMain.handle('key-set', async (_e, { provider, key }) => { keys[provider] = String(key).trim(); return { persisted: await saveKeys() }; });
 ipcMain.handle('key-clear', async (_e, provider) => { delete keys[provider]; await saveKeys(); return true; });
 
 ipcMain.handle('github-status', async () => ({
   hasToken: !!keys.github,
   login: keys.github_login || null,
-  secure: safeStorage.isEncryptionAvailable(),
+  secure: await isEncryptionAvail(),
   remote: await githubRemoteUrl(),
 }));
 ipcMain.handle('github-connect', async (_e, { token } = {}) => {
@@ -1602,7 +1627,7 @@ ipcMain.handle('github-connect', async (_e, { token } = {}) => {
   if (!value) throw new Error('Paste a personal access token first.');
   let res;
   try {
-    res = await net.fetch('https://api.github.com/user', {
+    res = await fetch('https://api.github.com/user', {
       headers: {
         Authorization: 'Bearer ' + value,
         Accept: 'application/vnd.github+json',
@@ -1620,7 +1645,7 @@ ipcMain.handle('github-connect', async (_e, { token } = {}) => {
   keys.github = value;
   keys.github_login = user.login || '';
   const persisted = await saveKeys();
-  return { login: user.login || '', persisted, secure: safeStorage.isEncryptionAvailable() };
+  return { login: user.login || '', persisted, secure: await isEncryptionAvail() };
 });
 ipcMain.handle('github-disconnect', async () => {
   delete keys.github;
@@ -1711,7 +1736,7 @@ function authUser() {
   return null;
 }
 async function githubProfile(token) {
-  const res = await net.fetch('https://api.github.com/user', {
+  const res = await fetch('https://api.github.com/user', {
     headers: {
       Authorization: 'Bearer ' + token,
       Accept: 'application/vnd.github+json',
@@ -1760,7 +1785,7 @@ function googleProfileFromClaims(p) {
 async function googleTokenRequest(params) {
   let res;
   try {
-    res = await net.fetch('https://oauth2.googleapis.com/token', {
+    res = await fetch('https://oauth2.googleapis.com/token', {
       method: 'POST',
       headers: { Accept: 'application/json', 'Content-Type': 'application/x-www-form-urlencoded' },
       body: new URLSearchParams(params).toString(),
@@ -1779,7 +1804,7 @@ async function googleTokenRequest(params) {
   return data;
 }
 async function googleUserInfo(accessToken) {
-  const res = await net.fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+  const res = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
     headers: { Authorization: 'Bearer ' + accessToken, Accept: 'application/json' },
     signal: AbortSignal.timeout(15000),
   });
@@ -1903,7 +1928,7 @@ ipcMain.handle('auth-start', async () => {
   if (!clientId) throw new Error('Set a GitHub OAuth App client ID first.');
   let res;
   try {
-    res = await net.fetch('https://github.com/login/device/code', {
+    res = await fetch('https://github.com/login/device/code', {
       method: 'POST',
       headers: { Accept: 'application/json', 'Content-Type': 'application/x-www-form-urlencoded', 'User-Agent': 'Jeilo-ARK' },
       body: new URLSearchParams({ client_id: clientId, scope: 'read:user' }).toString(),
@@ -1932,7 +1957,7 @@ ipcMain.handle('auth-poll', async () => {
   if (Date.now() > authPending.expiresAt) { authPending = null; return { status: 'expired' }; }
   let res, data;
   try {
-    res = await net.fetch('https://github.com/login/oauth/access_token', {
+    res = await fetch('https://github.com/login/oauth/access_token', {
       method: 'POST',
       headers: { Accept: 'application/json', 'Content-Type': 'application/x-www-form-urlencoded', 'User-Agent': 'Jeilo-ARK' },
       body: new URLSearchParams({
@@ -1951,7 +1976,7 @@ ipcMain.handle('auth-poll', async () => {
     try { user = await githubProfile(data.access_token); } catch {}
     authPending = null;
     const persisted = await storeOauth(data.access_token, user);
-    return { status: 'ok', provider: 'github', user: oauthUser(), persisted, secure: safeStorage.isEncryptionAvailable() };
+    return { status: 'ok', provider: 'github', user: oauthUser(), persisted, secure: await isEncryptionAvail() };
   }
   if (data.error === 'authorization_pending') return { status: 'pending' };
   if (data.error === 'slow_down') {
@@ -2042,7 +2067,7 @@ ipcMain.handle('auth-google-start', async () => {
         }
         const persisted = await storeGoogle(tokens, profile);
         send(200, 'Signed in.');
-        finish(null, { status: 'ok', provider: 'google', user: authUser(), persisted, secure: safeStorage.isEncryptionAvailable() });
+        finish(null, { status: 'ok', provider: 'google', user: authUser(), persisted, secure: await isEncryptionAvail() });
       } catch (e) {
         send(500, 'Sign-in failed.');
         finish(e);
@@ -2076,7 +2101,7 @@ ipcMain.handle('auth-verify', async () => {
 
 ipcMain.handle('list-models', async (_e, { baseUrl, provider }) => {
   const cloud = provider === 'nvidia' || provider === 'custom';
-  const res = await net.fetch(resolveUrl(provider, baseUrl) + '/models', { headers: authHeaders(provider), signal: AbortSignal.timeout(cloud ? 12000 : 3000) });
+  const res = await fetch(resolveUrl(provider, baseUrl) + '/models', { headers: authHeaders(provider), signal: AbortSignal.timeout(cloud ? 12000 : 3000) });
   if (!res.ok) throw new Error('HTTP ' + res.status);
   return (await res.json()).data.map((m) => m.id);
 });
@@ -2094,7 +2119,7 @@ ipcMain.handle('chat', async (e, { id, baseUrl, provider, model, messages, tools
     let res;
     for (let attempt = 0; ; attempt++) {
       bump();
-      res = await net.fetch(resolveUrl(provider, baseUrl) + '/chat/completions', {
+      res = await fetch(resolveUrl(provider, baseUrl) + '/chat/completions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...authHeaders(provider) },
         signal: ctrl.signal,
